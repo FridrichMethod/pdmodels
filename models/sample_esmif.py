@@ -5,20 +5,14 @@ import numpy as np
 import torch
 import torch_geometric
 import torch_sparse
-from torch_geometric.nn import MessagePassing
-
-import esm
 from esm.inverse_folding.multichain_util import (
     _concatenate_coords,
     extract_coords_from_complex,
 )
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
+from torch_geometric.nn import MessagePassing
 
-AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
-AA_DICT = {aa: i for i, aa in enumerate(AA_ALPHABET)}
-CHAIN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-torch.backends.cuda.matmul.allow_tf32 = True
+from .globals import AA_ALPHABET
 
 
 def sample_complex(
@@ -39,7 +33,9 @@ def sample_complex(
 
     struct = load_structure(pdbfile)
     native_coords, native_seqs = extract_coords_from_complex(struct)
-    all_coords = _concatenate_coords(native_coords, target_chain_id, padding_length=padding_length)
+    all_coords = _concatenate_coords(
+        native_coords, target_chain_id, padding_length=padding_length
+    )
 
     mask_idx = alphabet.get_idx("<mask>")
     cath_idx = alphabet.get_idx("<cath>")
@@ -47,7 +43,9 @@ def sample_complex(
 
     # Mask out redesigned residues of the target sequence
     target_seq_tokens = torch.tensor(alphabet.encode(native_seqs[target_chain_id]))
-    redesigned_residues_positions = torch.tensor([int(i) - 1 for i in redesigned_residues.split()])
+    redesigned_residues_positions = torch.tensor(
+        [int(i) - 1 for i in redesigned_residues.split()]
+    )
     target_seq_tokens[redesigned_residues_positions] = mask_idx
 
     B = batch_size
@@ -63,7 +61,11 @@ def sample_complex(
     # Tokens to remove from the output distribution
     removed_aa_tokens = torch.tensor(
         alphabet.encode(
-            "".join(aa for aa in alphabet.all_toks if (aa not in AA_ALPHABET) or (aa in omit_aa))
+            "".join(
+                aa
+                for aa in alphabet.all_toks
+                if (aa not in AA_ALPHABET) or (aa in omit_aa)
+            )
         )
     )
 
@@ -99,7 +101,7 @@ def sample_complex(
     name = os.path.splitext(os.path.basename(pdbfile))[0]
 
     if index_offset:
-        with open(output_path, "a") as f:
+        with open(output_path, "a", encoding="utf-8") as f:
             for i in range(B):
                 sampled_target_seq = "".join(
                     alphabet.get_tok(aa) for aa in sampled_target_seq_tokens[i]
@@ -107,7 +109,7 @@ def sample_complex(
                 f.write(f">id={i+index_offset}\n")
                 f.write(f"{sampled_target_seq}\n")
     else:
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(
                 f">template={name}, T={temperature}, num_res={len(redesigned_residues_positions)}, batch_size={B}\n"
             )

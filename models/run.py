@@ -7,7 +7,9 @@ import sys
 
 import numpy as np
 import torch
-from data_utils import (
+from prody import writePDB
+
+from .data_utils import (
     alphabet,
     element_dict_rev,
     featurize,
@@ -19,9 +21,9 @@ from data_utils import (
     restype_str_to_int,
     write_full_PDB,
 )
-from model_utils import ProteinMPNN
-from prody import writePDB
-from sc_utils import Packer, pack_side_chains
+from .model_utils import ProteinMPNN
+
+# from sc_utils import Packer, pack_side_chains
 
 
 def main(args) -> None:
@@ -91,31 +93,31 @@ def main(args) -> None:
     model.to(device)
     model.eval()
 
-    if args.pack_side_chains:
-        model_sc = Packer(
-            node_features=128,
-            edge_features=128,
-            num_positional_embeddings=16,
-            num_chain_embeddings=16,
-            num_rbf=16,
-            hidden_dim=128,
-            num_encoder_layers=3,
-            num_decoder_layers=3,
-            atom_context_num=16,
-            lower_bound=0.0,
-            upper_bound=20.0,
-            top_k=32,
-            dropout=0.0,
-            augment_eps=0.0,
-            atom37_order=False,
-            device=device,
-            num_mix=3,
-        )
+    # if args.pack_side_chains:
+    #     model_sc = Packer(
+    #         node_features=128,
+    #         edge_features=128,
+    #         num_positional_embeddings=16,
+    #         num_chain_embeddings=16,
+    #         num_rbf=16,
+    #         hidden_dim=128,
+    #         num_encoder_layers=3,
+    #         num_decoder_layers=3,
+    #         atom_context_num=16,
+    #         lower_bound=0.0,
+    #         upper_bound=20.0,
+    #         top_k=32,
+    #         dropout=0.0,
+    #         augment_eps=0.0,
+    #         atom37_order=False,
+    #         device=device,
+    #         num_mix=3,
+    #     )
 
-        checkpoint_sc = torch.load(args.checkpoint_path_sc, map_location=device)
-        model_sc.load_state_dict(checkpoint_sc["model_state_dict"])
-        model_sc.to(device)
-        model_sc.eval()
+    #     checkpoint_sc = torch.load(args.checkpoint_path_sc, map_location=device)
+    #     model_sc.load_state_dict(checkpoint_sc["model_state_dict"])
+    #     model_sc.to(device)
+    #     model_sc.eval()
 
     if args.pdb_path_multi:
         with open(args.pdb_path_multi, "r") as fh:
@@ -184,7 +186,6 @@ def main(args) -> None:
         parse_these_chains_only_list = args.parse_these_chains_only.split(",")
     else:
         parse_these_chains_only_list = []
-
 
     # loop over PDB paths
     for pdb in pdb_paths:
@@ -486,59 +487,59 @@ def main(args) -> None:
             if args.save_stats:
                 torch.save(out_dict, output_stats_path)
 
-            if args.pack_side_chains:
-                if args.verbose:
-                    print("Packing side chains...")
-                feature_dict_ = featurize(
-                    protein_dict,
-                    cutoff_for_score=8.0,
-                    use_atom_context=args.pack_with_ligand_context,
-                    number_of_ligand_atoms=16,
-                    model_type="ligand_mpnn",
-                )
-                sc_feature_dict = copy.deepcopy(feature_dict_)
-                B = args.batch_size
-                for k, v in sc_feature_dict.items():
-                    if k != "S":
-                        try:
-                            num_dim = len(v.shape)
-                            if num_dim == 2:
-                                sc_feature_dict[k] = v.repeat(B, 1)
-                            elif num_dim == 3:
-                                sc_feature_dict[k] = v.repeat(B, 1, 1)
-                            elif num_dim == 4:
-                                sc_feature_dict[k] = v.repeat(B, 1, 1, 1)
-                            elif num_dim == 5:
-                                sc_feature_dict[k] = v.repeat(B, 1, 1, 1, 1)
-                        except:
-                            pass
-                X_stack_list = []
-                X_m_stack_list = []
-                b_factor_stack_list = []
-                for _ in range(args.number_of_packs_per_design):
-                    X_list = []
-                    X_m_list = []
-                    b_factor_list = []
-                    for c in range(args.number_of_batches):
-                        sc_feature_dict["S"] = S_list[c]
-                        sc_dict = pack_side_chains(
-                            sc_feature_dict,
-                            model_sc,
-                            args.sc_num_denoising_steps,
-                            args.sc_num_samples,
-                            args.repack_everything,
-                        )
-                        X_list.append(sc_dict["X"])
-                        X_m_list.append(sc_dict["X_m"])
-                        b_factor_list.append(sc_dict["b_factors"])
+            # if args.pack_side_chains:
+            #     if args.verbose:
+            #         print("Packing side chains...")
+            #     feature_dict_ = featurize(
+            #         protein_dict,
+            #         cutoff_for_score=8.0,
+            #         use_atom_context=args.pack_with_ligand_context,
+            #         number_of_ligand_atoms=16,
+            #         model_type="ligand_mpnn",
+            #     )
+            #     sc_feature_dict = copy.deepcopy(feature_dict_)
+            #     B = args.batch_size
+            #     for k, v in sc_feature_dict.items():
+            #         if k != "S":
+            #             try:
+            #                 num_dim = len(v.shape)
+            #                 if num_dim == 2:
+            #                     sc_feature_dict[k] = v.repeat(B, 1)
+            #                 elif num_dim == 3:
+            #                     sc_feature_dict[k] = v.repeat(B, 1, 1)
+            #                 elif num_dim == 4:
+            #                     sc_feature_dict[k] = v.repeat(B, 1, 1, 1)
+            #                 elif num_dim == 5:
+            #                     sc_feature_dict[k] = v.repeat(B, 1, 1, 1, 1)
+            #             except:
+            #                 pass
+            #     X_stack_list = []
+            #     X_m_stack_list = []
+            #     b_factor_stack_list = []
+            #     for _ in range(args.number_of_packs_per_design):
+            #         X_list = []
+            #         X_m_list = []
+            #         b_factor_list = []
+            #         for c in range(args.number_of_batches):
+            #             sc_feature_dict["S"] = S_list[c]
+            #             sc_dict = pack_side_chains(
+            #                 sc_feature_dict,
+            #                 model_sc,
+            #                 args.sc_num_denoising_steps,
+            #                 args.sc_num_samples,
+            #                 args.repack_everything,
+            #             )
+            #             X_list.append(sc_dict["X"])
+            #             X_m_list.append(sc_dict["X_m"])
+            #             b_factor_list.append(sc_dict["b_factors"])
 
-                    X_stack = torch.cat(X_list, 0)
-                    X_m_stack = torch.cat(X_m_list, 0)
-                    b_factor_stack = torch.cat(b_factor_list, 0)
+            #         X_stack = torch.cat(X_list, 0)
+            #         X_m_stack = torch.cat(X_m_list, 0)
+            #         b_factor_stack = torch.cat(b_factor_list, 0)
 
-                    X_stack_list.append(X_stack)
-                    X_m_stack_list.append(X_m_stack)
-                    b_factor_stack_list.append(b_factor_stack)
+            #         X_stack_list.append(X_stack)
+            #         X_m_stack_list.append(X_m_stack)
+            #         b_factor_stack_list.append(b_factor_stack)
 
             with open(output_fasta, "w") as f:
                 f.write(
@@ -609,31 +610,31 @@ def main(args) -> None:
                         )
 
                     # write full PDB files
-                    if args.pack_side_chains:
-                        for c_pack in range(args.number_of_packs_per_design):
-                            X_stack = X_stack_list[c_pack]
-                            X_m_stack = X_m_stack_list[c_pack]
-                            b_factor_stack = b_factor_stack_list[c_pack]
-                            write_full_PDB(
-                                output_packed
-                                + name
-                                + args.packed_suffix
-                                + "_"
-                                + str(ix_suffix)
-                                + "_"
-                                + str(c_pack + 1)
-                                + args.file_ending
-                                + ".pdb",
-                                X_stack[ix].cpu().numpy(),
-                                X_m_stack[ix].cpu().numpy(),
-                                b_factor_stack[ix].cpu().numpy(),
-                                feature_dict["R_idx_original"][0].cpu().numpy(),
-                                protein_dict["chain_letters"],
-                                S_stack[ix].cpu().numpy(),
-                                other_atoms=other_atoms,
-                                icodes=icodes,
-                                force_hetatm=args.force_hetatm,
-                            )
+                    # if args.pack_side_chains:
+                    #     for c_pack in range(args.number_of_packs_per_design):
+                    #         X_stack = X_stack_list[c_pack]
+                    #         X_m_stack = X_m_stack_list[c_pack]
+                    #         b_factor_stack = b_factor_stack_list[c_pack]
+                    #         write_full_PDB(
+                    #             output_packed
+                    #             + name
+                    #             + args.packed_suffix
+                    #             + "_"
+                    #             + str(ix_suffix)
+                    #             + "_"
+                    #             + str(c_pack + 1)
+                    #             + args.file_ending
+                    #             + ".pdb",
+                    #             X_stack[ix].cpu().numpy(),
+                    #             X_m_stack[ix].cpu().numpy(),
+                    #             b_factor_stack[ix].cpu().numpy(),
+                    #             feature_dict["R_idx_original"][0].cpu().numpy(),
+                    #             protein_dict["chain_letters"],
+                    #             S_stack[ix].cpu().numpy(),
+                    #             other_atoms=other_atoms,
+                    #             icodes=icodes,
+                    #             force_hetatm=args.force_hetatm,
+                    #         )
                     # -----
 
                     # write fasta lines
@@ -925,7 +926,7 @@ if __name__ == "__main__":
         "--pack_side_chains",
         type=int,
         default=0,
-        help="1 - to run side chain packer, 0 - do not run it",
+        # help="1 - to run side chain packer, 0 - do not run it",
     )
 
     argparser.add_argument(

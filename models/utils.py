@@ -2,9 +2,7 @@ import numpy as np
 import pandas as pd
 from Bio.Align import substitution_matrices
 
-AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
-AA_DICT = {aa: i for i, aa in enumerate(AA_ALPHABET)}
-CHAIN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+from .globals import AA_ALPHABET, AA_DICT
 
 
 def _normalize_submat(submat: np.ndarray) -> np.ndarray:

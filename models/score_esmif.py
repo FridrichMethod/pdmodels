@@ -1,12 +1,10 @@
 import argparse
 
+import esm
 import numpy as np
 import torch
 import torch_geometric
 import torch_sparse
-from torch_geometric.nn import MessagePassing
-
-import esm
 from esm.data import Alphabet
 from esm.inverse_folding.gvp_transformer import GVPTransformerModel
 from esm.inverse_folding.multichain_util import (
@@ -14,12 +12,9 @@ from esm.inverse_folding.multichain_util import (
     extract_coords_from_complex,
 )
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
+from torch_geometric.nn import MessagePassing
 
-AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
-AA_DICT = {aa: i for i, aa in enumerate(AA_ALPHABET)}
-CHAIN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-torch.backends.cuda.matmul.allow_tf32 = True
+from .globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 
 
 def _concatenate_seqs(
@@ -51,7 +46,9 @@ def _concatenate_seqs(
             target_aa_indices.append(np.arange(i, i + len(seq)))
             i += len(seq)
 
-    target_seqs_concatenated = ("<mask>" * (padding_length - 1) + "<cath>").join(target_seqs_list)
+    target_seqs_concatenated = ("<mask>" * (padding_length - 1) + "<cath>").join(
+        target_seqs_list
+    )
     target_aa_concatenated = np.concatenate(target_aa_indices, axis=0)
 
     return target_seqs_concatenated, target_aa_concatenated
@@ -106,7 +103,8 @@ def score_complex(
     if target_seq_list is None:
         target_seq_list = [native_seqs[target_chain_id]]
     assert all(
-        len(target_seq) == len(native_seqs[target_chain_id]) for target_seq in target_seq_list
+        len(target_seq) == len(native_seqs[target_chain_id])
+        for target_seq in target_seq_list
     )
     target_seqs_list = [
         {
@@ -152,7 +150,10 @@ def score_complex(
     )  # (B, L, 20)
 
     target = torch.tensor(
-        [[AA_DICT[aa] for aa in "".join(target_seqs.values())] for target_seqs in target_seqs_list]
+        [
+            [AA_DICT[aa] for aa in "".join(target_seqs.values())]
+            for target_seqs in target_seqs_list
+        ]
     )  # (B, L)
     loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
     perplexity = torch.exp(loss.mean(dim=-1))  # (B,)

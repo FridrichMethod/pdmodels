@@ -5,12 +5,9 @@ import sys
 import numpy as np
 import torch
 
-from data_utils import featurize, parse_PDB
-from model_utils import ProteinMPNN, cat_neighbors_nodes
-
-AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
-AA_DICT = {aa: i for i, aa in enumerate(AA_ALPHABET)}
-CHAIN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+from .data_utils import element_dict_rev, featurize, parse_PDB
+from .globals import AA_DICT
+from .model_utils import ProteinMPNN, cat_neighbors_nodes
 
 
 class LigandMPNNBatch(ProteinMPNN):
@@ -95,6 +92,7 @@ def score_complex(
     chains_to_design: str = "",
     redesigned_residues: str = "",
     use_side_chain_context: bool = False,
+    verbose: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Score protein sequences towards a given complex structure.
 
@@ -116,6 +114,8 @@ def score_complex(
     use_side_chain_context: bool
         Whether to use side chain context in the model.
         Use side chain context of all fixed residues if True, otherwise use only backbone context.
+    verbose: bool
+        Whether to print the parsed ligand atoms and their types.
 
     Returns:
     --------
@@ -204,6 +204,23 @@ def score_complex(
     loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
     perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
 
+    if verbose:
+        if "Y" in protein_dict:
+            atom_coords = protein_dict["Y"].cpu().numpy()
+            atom_types = protein_dict["Y_t"].cpu().numpy()
+            atom_masks = protein_dict["Y_m"].cpu().numpy()
+            print(
+                f"The number of ligand atoms parsed is equal to: {np.sum(atom_masks)}"
+            )
+            for atom_type, atom_coord, atom_mask in zip(
+                atom_types, atom_coords, atom_masks
+            ):
+                print(
+                    f"Type: {element_dict_rev[atom_type]}, Coords {atom_coord}, Mask {atom_mask}"
+                )
+        else:
+            print("No ligand atoms parsed")
+
     return entropy, loss, perplexity
 
 
@@ -231,6 +248,7 @@ def main(args):
         chains_to_design=args.chains_to_design,
         redesigned_residues=args.redesigned_residues,
         use_side_chain_context=args.use_side_chain_context,
+        verbose=args.verbose,
     )
 
     out_dict = {
@@ -261,6 +279,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--use_side_chain_context", action="store_true", help="Use side chain context."
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print parsed ligand atoms and types."
     )
     args = parser.parse_args()
 

@@ -4,11 +4,7 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, EsmForMaskedLM
 
-AA_ALPHABET = "ACDEFGHIKLMNPQRSTVWY"
-AA_DICT = {aa: i for i, aa in enumerate(AA_ALPHABET)}
-CHAIN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-torch.backends.cuda.matmul.allow_tf32 = True
+from .globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 
 
 def score_complex(
@@ -52,23 +48,31 @@ def score_complex(
         AA_ALPHABET, add_special_tokens=False, return_tensors="pt"
     ).squeeze()
     padding = (
-        tokenizer.cls_token + tokenizer.mask_token * (padding_length - 2) + tokenizer.eos_token
+        tokenizer.cls_token
+        + tokenizer.mask_token * (padding_length - 2)
+        + tokenizer.eos_token
     )
     seq_list = seqs.split(":")
 
-    all_seqs = tokenizer(padding.join(seq_list), return_tensors="pt")["input_ids"].squeeze()
+    all_seqs = tokenizer(padding.join(seq_list), return_tensors="pt")[
+        "input_ids"
+    ].squeeze()
     all_indices = torch.where(all_seqs.unsqueeze(-1) == aa_tokens)[0]
 
     # mask every single position of the sequence
     mask = torch.eye(len(all_seqs), dtype=torch.long)
-    masked_inputs = (all_seqs * (1 - mask) + tokenizer.mask_token_id * mask)[all_indices]
+    masked_inputs = (all_seqs * (1 - mask) + tokenizer.mask_token_id * mask)[
+        all_indices
+    ]
     masked_inputs = masked_inputs.to(device)
 
     with torch.no_grad():
         logits = model(masked_inputs).logits
     logits = logits.cpu().detach()
     entropy = -(
-        logits[torch.arange(logits.shape[0]), all_indices][:, aa_tokens].log_softmax(dim=-1)
+        logits[torch.arange(logits.shape[0]), all_indices][:, aa_tokens].log_softmax(
+            dim=-1
+        )
     )  # (L, 20)
 
     target = torch.tensor([AA_DICT[aa] for aa in "".join(seq_list)])
@@ -122,10 +126,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("output_path", type=str, help="Path to save the output.")
     parser.add_argument(
-        "--padding_length", type=int, default=10, help="Padding length for chain separation."
+        "--padding_length",
+        type=int,
+        default=10,
+        help="Padding length for chain separation.",
     )
     parser.add_argument(
-        "--verbose", action="store_true", help="Print the loss and perplexity of the complex."
+        "--verbose",
+        action="store_true",
+        help="Print the loss and perplexity of the complex.",
     )
     args = parser.parse_args()
 
