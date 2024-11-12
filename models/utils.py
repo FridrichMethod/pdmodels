@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from Bio.Align import substitution_matrices
 
-from .globals import AA_ALPHABET, AA_DICT
+from models.globals import AA_ALPHABET, AA_DICT
 
 
 def _normalize_submat(submat: np.ndarray) -> np.ndarray:

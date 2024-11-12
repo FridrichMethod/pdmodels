@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, EsmForMaskedLM
 
-from .globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 
 
 def score_complex(

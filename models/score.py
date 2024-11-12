@@ -7,14 +7,14 @@ import sys
 import numpy as np
 import torch
 
-from .data_utils import (
+from models.data_utils import (
     alphabet,
     element_dict_rev,
     featurize,
     parse_PDB,
     restype_int_to_str,
 )
-from .model_utils import ProteinMPNN
+from models.model_utils import ProteinMPNN
 
 
 def main(args) -> None:
@@ -48,7 +48,7 @@ def main(args) -> None:
     else:
         print("Choose one of the available models")
         sys.exit()
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     if args.model_type == "ligand_mpnn":
         atom_context_num = checkpoint["atom_context_num"]
         ligand_mpnn_use_side_chain_context = args.ligand_mpnn_use_side_chain_context

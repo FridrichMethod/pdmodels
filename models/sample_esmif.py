@@ -12,7 +12,7 @@ from esm.inverse_folding.multichain_util import (
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 from torch_geometric.nn import MessagePassing
 
-from .globals import AA_ALPHABET
+from models.globals import AA_ALPHABET
 
 
 def sample_complex(

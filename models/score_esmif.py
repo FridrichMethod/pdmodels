@@ -14,7 +14,7 @@ from esm.inverse_folding.multichain_util import (
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 from torch_geometric.nn import MessagePassing
 
-from .globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 
 
 def _concatenate_seqs(

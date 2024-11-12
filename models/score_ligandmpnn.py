@@ -5,9 +5,9 @@ import sys
 import numpy as np
 import torch
 
-from .data_utils import element_dict_rev, featurize, parse_PDB
-from .globals import AA_DICT
-from .model_utils import ProteinMPNN, cat_neighbors_nodes
+from models.data_utils import element_dict_rev, featurize, parse_PDB
+from models.globals import AA_DICT
+from models.model_utils import ProteinMPNN, cat_neighbors_nodes
 
 
 class LigandMPNNBatch(ProteinMPNN):
@@ -205,12 +205,12 @@ def score_complex(
     perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
 
     if verbose:
-        if "Y" in protein_dict:
+        atom_masks = protein_dict.get("Y_m", torch.tensor([])).cpu().numpy()
+        if lig_atom_num := np.sum(atom_masks):
             atom_coords = protein_dict["Y"].cpu().numpy()
             atom_types = protein_dict["Y_t"].cpu().numpy()
-            atom_masks = protein_dict["Y_m"].cpu().numpy()
             print(
-                f"The number of ligand atoms parsed is equal to: {np.sum(atom_masks)}"
+                f"The number of ligand atoms parsed is equal to: {lig_atom_num}"
             )
             for atom_type, atom_coord, atom_mask in zip(
                 atom_types, atom_coords, atom_masks
@@ -228,7 +228,9 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     checkpoint = torch.load(
-        "../model_params/ligandmpnn_v_32_020_25.pt", map_location=device
+        "../model_params/ligandmpnn_v_32_020_25.pt",
+        map_location=device,
+        weights_only=True,
     )
     ligand_mpnn = LigandMPNNBatch(
         model_type="ligand_mpnn",

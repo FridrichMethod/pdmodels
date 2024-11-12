@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python ../score.py \
+PYTHONPATH=$(pwd)/.. python -m models.score \
     --model_type "ligand_mpnn" \
     --checkpoint_ligand_mpnn "../model_params/ligandmpnn_v_32_020_25.pt" \
     --pdb_path "$1" \

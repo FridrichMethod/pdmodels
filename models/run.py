@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from prody import writePDB
 
-from .data_utils import (
+from models.data_utils import (
     alphabet,
     element_dict_rev,
     featurize,
@@ -21,7 +21,7 @@ from .data_utils import (
     restype_str_to_int,
     write_full_PDB,
 )
-from .model_utils import ProteinMPNN
+from models.model_utils import ProteinMPNN
 
 # from sc_utils import Packer, pack_side_chains
 
@@ -66,7 +66,7 @@ def main(args) -> None:
     else:
         print("Choose one of the available models")
         sys.exit()
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     if args.model_type == "ligand_mpnn":
         atom_context_num = checkpoint["atom_context_num"]
         ligand_mpnn_use_side_chain_context = args.ligand_mpnn_use_side_chain_context
