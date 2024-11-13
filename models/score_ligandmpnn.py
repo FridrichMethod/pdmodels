@@ -12,6 +12,54 @@ from models.model_utils import ProteinMPNN, cat_neighbors_nodes
 
 class LigandMPNNBatch(ProteinMPNN):
 
+    def __init__(
+        self,
+        num_letters: int = 21,
+        node_features: int = 128,
+        edge_features: int = 128,
+        hidden_dim: int = 128,
+        num_encoder_layers: int = 3,
+        num_decoder_layers: int = 3,
+        vocab: int = 21,
+        k_neighbors: int = 32,
+        augment_eps: float = 0.0,
+        dropout: float = 0.0,
+        device: str | torch.device | None = "cpu",
+        atom_context_num: int = 25,
+        model_type: str = "ligand_mpnn",
+        ligand_mpnn_use_side_chain_context: bool = False,
+    ) -> None:
+        """Initialize the LigandMPNNBatch model.
+
+        Args:
+            model_type (str):
+                The model to initialize.
+                Has set to `ligand_mpnn` as default.
+            k_neighbors (int):
+                The number of nearest residues neighbors to consider in the message passing.
+                Has set to `32` as default.
+            atom_context_num (int):
+                The number of nearest ligand atoms to consider in the message passing.
+                Has set to `25` as default.
+        """
+
+        super().__init__(
+            num_letters=num_letters,
+            node_features=node_features,
+            edge_features=edge_features,
+            hidden_dim=hidden_dim,
+            num_encoder_layers=num_encoder_layers,
+            num_decoder_layers=num_decoder_layers,
+            vocab=vocab,
+            k_neighbors=k_neighbors,
+            augment_eps=augment_eps,
+            dropout=dropout,
+            device=device,
+            atom_context_num=atom_context_num,
+            model_type=model_type,
+            ligand_mpnn_use_side_chain_context=ligand_mpnn_use_side_chain_context,
+        )
+
     def single_aa_score(self, feature_dict, use_sequence: bool):
         """Rewrite the single_aa_score function of ProteinMPNN class to batch version.
 
@@ -96,35 +144,31 @@ def score_complex(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Score protein sequences towards a given complex structure.
 
-    Parameters:
-    -----------
-    model: LigandMPNNBatch
-        The LigandMPNN model to use for scoring.
-    pdbfile: str
-        The path to the PDB file containing the complex structure.
-    seqs_list: list[str]
-        A list of sequences to score towards the complex structure.
-        Chains are separated by colons.
-    chains_to_design: str
-        A comma-separated list of chain letters of the redigned chains.
-        This option is only used to identify the regions not to use side chain context.
-    redesigned_residues: str
-        A space-separated list of chain letter and residue number pairs of the redesigned residues.
-        This option is only used to identify the regions not to use side chain context.
-    use_side_chain_context: bool
-        Whether to use side chain context in the model.
-        Use side chain context of all fixed residues if True, otherwise use only backbone context.
-    verbose: bool
-        Whether to print the parsed ligand atoms and their types.
+    Args:
+        model (LigandMPNNBatch):
+            The LigandMPNN model to use for scoring.
+        pdbfile (str):
+            The path to the PDB file containing the complex structure.
+        seqs_list (list[str]):
+            A list of sequences to score towards the complex structure.
+            Chains are separated by colons.
+        chains_to_design (str):
+            A comma-separated list of chain letters of the redigned chains.
+            This option is only used to identify the regions not to use side chain context.
+        redesigned_residues (str):
+            A space-separated list of chain letter and residue number pairs of the redesigned residues.
+            This option is only used to identify the regions not to use side chain context.
+        use_side_chain_context (bool):
+            Whether to use side chain context in the model.
+            Use side chain context of all fixed residues if True, otherwise use only backbone context.
+        verbose (bool):
+            Whether to print the parsed ligand atoms and their types.
 
     Returns:
-    --------
-    entropy: torch.Tensor (B, L, 20)
-        -log{logits} of the masked token at each position.
-    loss: torch.Tensor (B, L)
-        Cross entropy of the true residue at each position.
-    perplexity: torch.Tensor (B,)
-        exp{average entropy} of the full sequence.
+        (entropy, loss, perplexity) (tuple):
+            - entropy (torch.Tensor (B, L, 20)): -log{logits} of the masked token at each position.
+            - loss (torch.Tensor (B, L)): Cross entropy of the true residue at each position.
+            - perplexity (torch.Tensor (B,)): exp{average entropy} of the full sequence.
 
     Notes:
     ------
@@ -209,9 +253,7 @@ def score_complex(
         if lig_atom_num := np.sum(atom_masks):
             atom_coords = protein_dict["Y"].cpu().numpy()
             atom_types = protein_dict["Y_t"].cpu().numpy()
-            print(
-                f"The number of ligand atoms parsed is equal to: {lig_atom_num}"
-            )
+            print(f"The number of ligand atoms parsed is equal to: {lig_atom_num}")
             for atom_type, atom_coord, atom_mask in zip(
                 atom_types, atom_coords, atom_masks
             ):
@@ -220,6 +262,36 @@ def score_complex(
                 )
         else:
             print("No ligand atoms parsed")
+
+    return entropy, loss, perplexity
+
+
+def extract_from_score(output_path):
+    """Extract entropy, loss, and perplexity from LigandMPNN output score file."""
+    with open(output_path, "rb") as f:
+        output = torch.load(f)
+
+    entropy = -(
+        torch.tensor(output["logits"][:, :, :20]).softmax(dim=-1).mean(dim=0).log()
+    )  # (L, 20)
+    target = torch.tensor(output["native_sequence"], dtype=torch.long)  # (L,)
+    loss = torch.gather(entropy, 1, target.unsqueeze(1)).squeeze()  # (L,)
+    perplexity = torch.exp(loss.mean()).item()  # scalar
+
+    return entropy, loss, perplexity
+
+
+def extract_from_sample(output_path):
+    """Extract entropy, loss, and perplexity from LigandMPNN output sample file."""
+    with open(output_path, "rb") as f:
+        output = torch.load(f)
+
+    entropy = -output["log_probs"]  # (B, L, 20)
+    target = output["generated_sequences"]  # (B, L)
+    loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
+    perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
+    # redesigned = output["chain_mask"] == 1
+    # confidence = torch.exp(-loss[:, redesigned].mean(dim=-1))
 
     return entropy, loss, perplexity
 

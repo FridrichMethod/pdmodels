@@ -22,14 +22,20 @@ def _concatenate_seqs(
     target_chain_id: str,
     padding_length: int = 10,
 ) -> tuple[str, np.ndarray]:
-    """
+    """Concatenate the chain sequences with padding in between.
+
     Args:
-        target_seqs: Modified target dictionary mapping chain ids to corresponding AA sequence
-        target_chain_id: The chain id to sample sequences for
-        padding_length: Length of padding between concatenated chains
+        target_seqs (dict[str, str]):
+            Modified target dictionary mapping chain ids to corresponding AA sequence
+        target_chain_id (str):
+            The chain id to sample sequences for
+        padding_length (int):
+            Length of padding between concatenated chains
+
     Returns:
-        target_seqs_concatenated: Array of length L, concatenation of the chain
-        sequences with padding in between
+        (target_seqs_concatenated, target_aa_indices) (tuple):
+            - target_seqs_concatenated (str): Concatenated sequences with padding in between
+            - target_aa_indices (np.ndarray): Indices of the concatenated sequences in the concatenated array
     """
 
     target_seq = target_seqs[target_chain_id]
@@ -65,31 +71,27 @@ def score_complex(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Score target sequences towards a given complex structure.
 
-    Parameters:
-    -----------
-    model: GVPTransformerModel
-        The GVPTransformerModel model from ESM-IF.
-    alphabet: Alphabet
-        The alphabet used for encoding the sequences.
-    pdbfile: str
-        The path to the PDB file.
-    target_seq_list: list[str]
-        A list of sequences of the same single chain to score towards the complex structure.
-    target_chain_id: str
-        The chain id of the target sequence.
-    padding_length: int
-        Padding length for chain separation.
-    verbose: bool
-        Whether to print the results.
+    Args:
+        model (GVPTransformerModel):
+            The GVPTransformerModel model from ESM-IF.
+        alphabet (Alphabet):
+            The alphabet used for encoding the sequences.
+        pdbfile (str):
+            The path to the PDB file.
+        target_seq_list (list[str]):
+            A list of sequences of the same single chain to score towards the complex structure.
+        target_chain_id (str):
+            The chain id of the target sequence.
+        padding_length (int):
+            Padding length for chain separation.
+        verbose (bool):
+            Whether to print the results.
 
     Returns:
-    --------
-    entropy: torch.Tensor (B, L, 20)
-        -log{logits} of the masked token at each position.
-    loss: torch.Tensor (B, L)
-        Cross entropy of the true residue at each position.
-    perplexity: torch.Tensor (B,)
-        exp{average entropy} of the full sequence.
+        (entropy, loss, perplexity) (tuple):
+            - entropy (torch.Tensor (B, L, 20)): -log{logits} of the masked token at each position.
+            - loss (torch.Tensor (B, L)): Cross entropy of the true residue at each position.
+            - perplexity (torch.Tensor (B,)): exp{average entropy} of the full sequence.
 
     Notes:
     ------

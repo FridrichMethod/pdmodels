@@ -10,85 +10,90 @@ from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 def score_complex(
     model: EsmForMaskedLM,
     tokenizer: AutoTokenizer,
-    seqs: str,
+    seqs_list: list[str],
     padding_length: int = 10,
     verbose: bool = False,
-) -> tuple[torch.Tensor, torch.Tensor, float]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Calculate the scores of a complex sequence by ESM2 model.
 
     Mask every single position of the sequence and calculate the entropy of the masked token.
 
-    Parameters:
-    -----------
-    model: EsmForMaskedLM
-        esm2 model, either 3B or 650M.
-    tokenizer: AutoTokenizer
-        Tokenizer for the model.
-    seqs: str
-        Sequences of complex to score towards the given complex structure.
-        Chains should be separated by colons.
-    padding_length: int
-        Padding length for chain separation.
-    verbose: bool
-        Print the loss and perplexity of the complex.
+    Args:
+        model (EsmForMaskedLM):
+            esm2 model, either `3B` or `650M`.
+        tokenizer (AutoTokenizer):
+            Tokenizer for the model.
+        seqs_list (list[str]):
+            A list of sequences of complex to score towards the given complex structure.
+            Chains should be separated by colons.
+        padding_length (int):
+            Padding length for chain separation.
+        verbose (bool):
+            Print the loss and perplexity of the complex.
 
     Returns:
-    --------
-    entropy: torch.Tensor (L, 20)
-        -log{logits} of the masked token at each position.
-    loss: torch.Tensor (L,)
-        Cross entropy of the true residue at each position.
-    perplexity: float
-        exp{average entropy} of the full sequence.
+        (entropy, loss, perplexity) (tuple):
+            - entropy (torch.Tensor (B, L, 20)): -log{logits} of the masked token at each position.
+            - loss (torch.Tensor (B, L)): Cross entropy of the true residue at each position.
+            - perplexity (torch.Tensor (B,)): exp{average entropy} of the full sequence.
     """
 
     device = next(model.parameters()).device
 
     aa_tokens = tokenizer.encode(
         AA_ALPHABET, add_special_tokens=False, return_tensors="pt"
-    ).squeeze()
+    ).squeeze()  # (20,)
     padding = (
-        tokenizer.cls_token
+        tokenizer.eos_token  # eos token of last sequence
         + tokenizer.mask_token * (padding_length - 2)
-        + tokenizer.eos_token
+        + tokenizer.cls_token  # cls token of next sequence
     )
-    seq_list = seqs.split(":")
+    seq_list_list: list[list[str]] = [seqs.split(":") for seqs in seqs_list]
 
-    all_seqs = tokenizer(padding.join(seq_list), return_tensors="pt")[
+    # concatenate all sequences
+    all_seqs = tokenizer(
+        [padding.join(seq_list) for seq_list in seq_list_list], return_tensors="pt"
+    )[
         "input_ids"
-    ].squeeze()
-    all_indices = torch.where(all_seqs.unsqueeze(-1) == aa_tokens)[0]
+    ]  # (B, L')
+    all_masks = torch.isin(all_seqs, aa_tokens)  # (B, L')
+    seq_len = torch.sum(all_masks[0]).item()
 
     # mask every single position of the sequence
-    mask = torch.eye(len(all_seqs), dtype=torch.long)
-    masked_inputs = (all_seqs * (1 - mask) + tokenizer.mask_token_id * mask)[
-        all_indices
-    ]
+    masked_inputs = all_seqs.repeat_interleave(seq_len, dim=0)  # (B * L, L')
+    all_indices: tuple[torch.Tensor, torch.Tensor] = (
+        torch.arange(masked_inputs.shape[0]),  # (B * L,)
+        torch.where(all_masks)[1],  # (B * L,)
+    )
+    masked_inputs[all_indices] = tokenizer.mask_token_id
     masked_inputs = masked_inputs.to(device)
 
     with torch.no_grad():
         logits = model(masked_inputs).logits
-    logits = logits.cpu().detach()
+    logits = logits.cpu().detach()  # (B * L, L', C)
     entropy = -(
-        logits[torch.arange(logits.shape[0]), all_indices][:, aa_tokens].log_softmax(
-            dim=-1
-        )
-    )  # (L, 20)
+        logits[all_indices][:, aa_tokens].view(-1, seq_len, 20).log_softmax(dim=-1)
+    )  # (B, L, 20)
 
-    target = torch.tensor([AA_DICT[aa] for aa in "".join(seq_list)])
-    loss = torch.gather(entropy, 1, target.unsqueeze(1)).squeeze()  # (L,)
-    perplexity = torch.exp(loss.mean()).item()  # scalar
+    target = torch.tensor(
+        [[AA_DICT[aa] for aa in "".join(seq_list)] for seq_list in seq_list_list]
+    )  # (B, L)
+    loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
+    perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
 
     if verbose:
-        print("loss:")
-        k = 0
-        for i, chain in enumerate(seq_list):
-            loss_chunk = loss[k : k + len(chain)]
-            k += len(chain)
-            print(f"chain {CHAIN_ALPHABET[i]}")
-            for j, (aa, loss_val) in enumerate(zip(chain, loss_chunk)):
-                print(f"{aa}{j+1}: {loss_val.item()}")
-        print(f"perplexity: {perplexity}")
+        for l, seq_list in enumerate(seq_list_list):
+            print(f"target_seq: {seqs_list[l]}")
+            print("loss:")
+            k = 0
+            for i, chain in enumerate(seq_list):
+                loss_chunk = loss[l, k : k + len(chain)]
+                k += len(chain)
+                print(f"chain {CHAIN_ALPHABET[i]}")
+                for j, (aa, loss_val) in enumerate(zip(chain, loss_chunk)):
+                    print(f"{aa}{j+1}: {loss_val.item()}")
+            print(f"perplexity: {perplexity[l].item()}")
+            print()
 
     return entropy, loss, perplexity
 

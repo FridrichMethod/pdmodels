@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pandas as pd
 from Bio.Align import substitution_matrices
@@ -30,7 +32,21 @@ def _normalize_submat(submat: np.ndarray) -> np.ndarray:
 def count_mutations(
     seqs: list[str], seq0: str, substitution_matrix: str = "identity"
 ) -> np.ndarray:
-    """Count the number of mutations between sequences and a reference sequence of the same length."""
+    """Count the number of mutations between sequences and a reference sequence of the same length.
+
+    Args:
+        seqs (list[str]):
+            List of sequences to compare.
+        seq0 (str):
+            Reference sequence.
+        substitution_matrix (str):
+            Substitution matrix to use. Can be "identity" or a name from Bio.Align.substitution_matrices.load().
+
+    Returns:
+        mutation_counts (np.ndarray):
+            Number of mutations between each sequence and the reference sequence.
+    """
+
     if substitution_matrix == "identity":
         submat: np.ndarray = np.identity(20)
     elif substitution_matrix in substitution_matrices.load():
@@ -62,3 +78,61 @@ def count_mutations(
         raise ValueError("Some sequences have different lengths.") from None
 
     return submat_norm[seqs_idx, seq0_idx].sum(axis=1)
+
+
+def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFrame:
+    """Parse a fasta file into a pandas DataFrame.
+
+    Args:
+        fasta_file (str):
+            Path to the fasta file.
+        idx (str):
+            Key in the title line to add a prefix.
+        prefix (str):
+            Prefix to add to a specific value of the title key.
+
+    Returns:
+        seqs_info (pd.DataFrame):
+            DataFrame with columns from the title line and the sequence.
+    """
+
+    title_regex = r"^>(\w+=[\w\d_]+)(, \w+=[\w\d_]+)*$"
+    sequence_regex = r"^[ACDEFGHIKLMNPQRSTVWY:]+$"
+
+    with open(fasta_file) as f:
+        lines = f.readlines()
+
+    titles = []
+    sequences = []
+    j = 0
+    for i, line in enumerate(lines):
+        if re.match(title_regex, line):
+            title = line.strip()[1:]
+            titles.append(title)
+            if i - j:
+                raise ValueError(f"Line {line} does not match fasta format")
+        elif re.match(sequence_regex, line):
+            sequence = line.strip()
+            sequences.append(sequence)
+            if i - j - 1:
+                raise ValueError(f"Line {line} does not match fasta format")
+            j = i + 1
+        else:
+            raise ValueError(f"Line {line} does not match title or sequence regex")
+
+    if len(titles) != len(sequences):
+        raise ValueError("Number of titles and sequences do not match")
+
+    title_dicts = []
+    for title, sequence in zip(titles, sequences):
+        title_dict = {}
+        for title_part in title.split(","):
+            if title_part:
+                key, value = title_part.strip().split("=")
+                if key == idx:
+                    value = prefix + value
+                title_dict[key] = value
+        title_dict["sequence"] = sequence
+        title_dicts.append(title_dict)
+
+    return pd.DataFrame(title_dicts)
