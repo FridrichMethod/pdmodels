@@ -18,24 +18,28 @@ def score_complex(
 
     Mask every single position of the sequence and calculate the entropy of the masked token.
 
-    Args:
-        model (EsmForMaskedLM):
-            esm2 model, either `3B` or `650M`.
-        tokenizer (AutoTokenizer):
-            Tokenizer for the model.
-        seqs_list (list[str]):
-            A list of sequences of complex to score towards the given complex structure.
-            Chains should be separated by colons.
-        padding_length (int):
-            Padding length for chain separation.
-        verbose (bool):
-            Print the loss and perplexity of the complex.
+    Args
+    ----
+    model: EsmForMaskedLM
+        esm2 model, either `3B` or `650M`.
+    tokenizer: AutoTokenizer
+        Tokenizer for the model.
+    seqs_list: list[str]
+        A list of sequences of complex to score towards the given complex structure.
+        Chains should be separated by colons.
+    padding_length: int
+        Padding length for chain separation.
+    verbose: bool
+        Print the loss and perplexity of the complex.
 
-    Returns:
-        (entropy, loss, perplexity) (tuple):
-            - entropy (torch.Tensor (B, L, 20)): -log{logits} of the masked token at each position.
-            - loss (torch.Tensor (B, L)): Cross entropy of the true residue at each position.
-            - perplexity (torch.Tensor (B,)): exp{average entropy} of the full sequence.
+    Returns
+    -------
+    entropy: torch.Tensor[B, L, 20]
+        -log{logits} of the masked token at each position.
+    loss: torch.Tensor[B, L]
+        Cross entropy of the true residue at each position.
+    perplexity: torch.Tensor[B,]
+        exp{average entropy} of the full sequence.
     """
 
     device = next(model.parameters()).device

@@ -30,29 +30,30 @@ def sample_complex(
 ) -> None:
     """Sample redesigned sequences for a given complex structure.
 
-    Args:
-        model (GVPTransformerModel):
-            Inverse folding model.
-        alphabet (Alphabet):
-            Alphabet object for encoding and decoding sequences.
-        pdbfile (str): 
-            Path to the PDB file of the complex structure.
-        output_path (str):
-            Path to the output file.
-        target_chain_id (str):
-            Chain ID of the target sequence.
-        batch_size (int):
-            Number of sequences to sample.
-        redesigned_residues (str):
-            Residue positions to redesign, separated by spaces.
-        omit_aa (str):
-            Amino acids to omit from the output sequence.
-        temperature (float):
-            Temperature for sampling.
-        padding_length (int):
-            Length of padding between concatenated chains.
-        index_offset (int):
-            Offset for the sequence ID in the output file
+    Args
+    ----
+    model: GVPTransformerModel
+        ESM-IF model.
+    alphabet: Alphabet
+        Alphabet object.
+    pdbfile: str
+        Path to the PDB file.
+    output_path: str
+        Path to save the sampled sequences.
+    target_chain_id: str
+        Chain ID of the target sequence.
+    batch_size: int
+        Number of sequences to sample.
+    redesigned_residues: str
+        Space-separated indices of redesigned residues.
+    omit_aa: str
+        Amino acids to omit from the sampling.
+    temperature: float
+        Sampling temperature.
+    padding_length: int
+        Length of padding between concatenated chains.
+    index_offset: int
+        Offset for the sequence IDs.
     """
 
     device = next(model.parameters()).device

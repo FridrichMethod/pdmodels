@@ -31,16 +31,17 @@ class LigandMPNNBatch(ProteinMPNN):
     ) -> None:
         """Initialize the LigandMPNNBatch model.
 
-        Args:
-            model_type (str):
-                The model to initialize.
-                Has set to `ligand_mpnn` as default.
-            k_neighbors (int):
-                The number of nearest residues neighbors to consider in the message passing.
-                Has set to `32` as default.
-            atom_context_num (int):
-                The number of nearest ligand atoms to consider in the message passing.
-                Has set to `25` as default.
+        Args
+        ------
+        model_type: str
+            The model to initialize.
+            Has set to `ligand_mpnn` as default.
+        k_neighbors: int
+            The number of nearest residues neighbors to consider in the message passing.
+            Has set to `32` as default.
+        atom_context_num: int
+            The number of nearest ligand atoms to consider in the message passing.
+            Has set to `25` as default.
         """
 
         super().__init__(
@@ -144,33 +145,37 @@ def score_complex(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Score protein sequences towards a given complex structure.
 
-    Args:
-        model (LigandMPNNBatch):
-            The LigandMPNN model to use for scoring.
-        pdbfile (str):
-            The path to the PDB file containing the complex structure.
-        seqs_list (list[str]):
-            A list of sequences to score towards the complex structure.
-            Chains are separated by colons.
-        chains_to_design (str):
-            A comma-separated list of chain letters of the redigned chains.
-            This option is only used to identify the regions not to use side chain context.
-        redesigned_residues (str):
-            A space-separated list of chain letter and residue number pairs of the redesigned residues.
-            This option is only used to identify the regions not to use side chain context.
-        use_side_chain_context (bool):
-            Whether to use side chain context in the model.
-            Use side chain context of all fixed residues if True, otherwise use only backbone context.
-        verbose (bool):
-            Whether to print the parsed ligand atoms and their types.
+    Args
+    ------
+    model: LigandMPNNBatch
+        The LigandMPNN model to use for scoring.
+    pdbfile: str
+        The path to the PDB file containing the complex structure.
+    seqs_list: list[str] | None
+        A list of sequences to score towards the complex structure.
+        Chains are separated by colons.
+    chains_to_design: str
+        A comma-separated list of chain letters of the redigned chains.
+        This option is only used to identify the regions not to use side chain context.
+    redesigned_residues: str
+        A space-separated list of chain letter and residue number pairs of the redesigned residues.
+        This option is only used to identify the regions not to use side chain context.
+    use_side_chain_context: bool
+        Whether to use side chain context in the model.
+        Use side chain context of all fixed residues if True, otherwise use only backbone context.
+    verbose: bool
+        Whether to print the parsed ligand atoms and their types.
 
-    Returns:
-        (entropy, loss, perplexity) (tuple):
-            - entropy (torch.Tensor (B, L, 20)): -log{logits} of the masked token at each position.
-            - loss (torch.Tensor (B, L)): Cross entropy of the true residue at each position.
-            - perplexity (torch.Tensor (B,)): exp{average entropy} of the full sequence.
+    Returns
+    -------
+    entropy: torch.Tensor[B, L, 20]
+        -log{logits} of the masked token at each position.
+    loss: torch.Tensor[B, L]
+        Cross entropy of the true residue at each position.
+    perplexity: torch.Tensor[B,]
+        exp{average entropy} of the full sequence.
 
-    Notes:
+    Notes
     ------
     - If chains_to_design and redesigned_residues are empty, all residues are considered redesignable.
     - If chains_to_design and redesigned_residues are both provided, the union of the two is used.

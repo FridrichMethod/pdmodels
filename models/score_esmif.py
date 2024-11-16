@@ -71,27 +71,31 @@ def score_complex(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Score target sequences towards a given complex structure.
 
-    Args:
-        model (GVPTransformerModel):
-            The GVPTransformerModel model from ESM-IF.
-        alphabet (Alphabet):
-            The alphabet used for encoding the sequences.
-        pdbfile (str):
-            The path to the PDB file.
-        target_seq_list (list[str]):
-            A list of sequences of the same single chain to score towards the complex structure.
-        target_chain_id (str):
-            The chain id of the target sequence.
-        padding_length (int):
-            Padding length for chain separation.
-        verbose (bool):
-            Whether to print the results.
+    Args
+    ----
+    model: GVPTransformerModel
+        The GVPTransformerModel model from ESM-IF.
+    alphabet: Alphabet
+        The alphabet used for encoding the sequences.
+    pdbfile: str
+        The path to the PDB file.
+    target_seq_list: list[str] | None
+        A list of sequences of the same single chain to score towards the complex structure.
+    target_chain_id: str
+        The chain id of the target sequence.
+    padding_length: int
+        Padding length for chain separation.
+    verbose: bool
+        Whether to print the results.
 
-    Returns:
-        (entropy, loss, perplexity) (tuple):
-            - entropy (torch.Tensor (B, L, 20)): -log{logits} of the masked token at each position.
-            - loss (torch.Tensor (B, L)): Cross entropy of the true residue at each position.
-            - perplexity (torch.Tensor (B,)): exp{average entropy} of the full sequence.
+    Returns
+    -------
+    entropy: torch.Tensor[B, L, 20]
+        -log{logits} of the masked token at each position.
+    loss: torch.Tensor[B, L]
+        Cross entropy of the true residue at each position.
+    perplexity: torch.Tensor[B,]
+        exp{average entropy} of the full sequence.
 
     Notes:
     ------

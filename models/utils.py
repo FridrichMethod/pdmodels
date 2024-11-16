@@ -34,17 +34,19 @@ def count_mutations(
 ) -> np.ndarray:
     """Count the number of mutations between sequences and a reference sequence of the same length.
 
-    Args:
-        seqs (list[str]):
-            List of sequences to compare.
-        seq0 (str):
-            Reference sequence.
-        substitution_matrix (str):
-            Substitution matrix to use. Can be "identity" or a name from Bio.Align.substitution_matrices.load().
+    Args
+    ----
+    seqs: list[str]
+        List of sequences to compare.
+    seq0: str
+        Reference sequence.
+    substitution_matrix: str
+        Substitution matrix to use. Can be "identity" or a name from Bio.Align.substitution_matrices.load().
 
-    Returns:
-        mutation_counts (np.ndarray):
-            Number of mutations between each sequence and the reference sequence.
+    Returns
+    -------
+    mutation_counts: np.ndarray
+        Number of mutations between each sequence and the reference sequence.
     """
 
     if substitution_matrix == "identity":
@@ -83,17 +85,19 @@ def count_mutations(
 def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFrame:
     """Parse a fasta file into a pandas DataFrame.
 
-    Args:
-        fasta_file (str):
-            Path to the fasta file.
-        idx (str):
-            Key in the title line to add a prefix.
-        prefix (str):
-            Prefix to add to a specific value of the title key.
+    Args
+    ----
+    fasta_file: str
+        Path to the fasta file.
+    idx: str
+        Key in the title line to add a prefix.
+    prefix: str
+        Prefix to add to a specific value of the title key.
 
-    Returns:
-        seqs_info (pd.DataFrame):
-            DataFrame with columns from the title line and the sequence.
+    Returns
+    -------
+    seqs_info: pd.DataFrame
+        DataFrame with columns from the title line and the sequence.
     """
 
     title_regex = r"^>(\w+=[\w\d_]+)(, \w+=[\w\d_]+)*$"
@@ -136,3 +140,18 @@ def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFr
         title_dicts.append(title_dict)
 
     return pd.DataFrame(title_dicts)
+
+
+def get_top_percentile(
+    df: pd.DataFrame,
+    columns: list[str],
+    percentile: float = 0.5,
+    ascending: bool = True,
+) -> pd.DataFrame:
+    """Get top percentile of dataframe based on columns."""
+
+    return (
+        df[(df[columns].rank(method="dense", pct=True) <= percentile).all(axis=1)]
+        if ascending
+        else df[(df[columns].rank(method="dense", pct=True) >= percentile).all(axis=1)]
+    )
