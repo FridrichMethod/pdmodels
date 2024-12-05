@@ -100,7 +100,7 @@ def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFr
         DataFrame with columns from the title line and the sequence.
     """
 
-    title_regex = r"^>(\w+=[\w\d_]+)(, \w+=[\w\d_]+)*$"
+    title_regex = r"^>(\w+=[\w\d_.]+)(, \w+=[\w\d_.]+)*$"
     sequence_regex = r"^[ACDEFGHIKLMNPQRSTVWY:]+$"
 
     with open(fasta_file) as f:
@@ -147,11 +147,20 @@ def get_top_percentile(
     columns: list[str],
     percentile: float = 0.5,
     ascending: bool = True,
+    ignore_index=False,
 ) -> pd.DataFrame:
     """Get top percentile of dataframe based on columns."""
 
-    return (
-        df[(df[columns].rank(method="dense", pct=True) <= percentile).all(axis=1)]
-        if ascending
-        else df[(df[columns].rank(method="dense", pct=True) >= percentile).all(axis=1)]
-    )
+    if ascending:
+        df_copy = df[
+            (df[columns].rank(method="dense", pct=True) <= percentile).all(axis=1)
+        ]
+    else:
+        df_copy = df[
+            (df[columns].rank(method="dense", pct=True) >= percentile).all(axis=1)
+        ]
+
+    if ignore_index:
+        df = df.reset_index(drop=True)
+
+    return df_copy
