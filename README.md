@@ -1,2 +1,1 @@
-# DisulfideBond
-Disulfide Bond Project
+# Protein Design Models
