@@ -3,6 +3,8 @@ import re
 import numpy as np
 import pandas as pd
 from Bio.Align import substitution_matrices
+from Bio.PDB import PDBParser, is_aa
+from scipy.spatial import distance_matrix
 
 from models.globals import AA_ALPHABET, AA_DICT
 
@@ -164,3 +166,29 @@ def get_top_percentile(
         df = df.reset_index(drop=True)
 
     return df_copy
+
+
+def calculate_distance_matrix(pdb_path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Calculate the distance matrix of a PDB file."""
+    structure = PDBParser(QUIET=True).get_structure("pdb", pdb_path)
+    if len(structure) != 1:
+        raise ValueError("Structure contains more than one model.")
+    model_ = next(structure.get_models())
+
+    coords_list = []
+    mask_list = []
+    for chain in model_:
+        for residue in chain:
+            if not is_aa(residue):
+                print(f"Skipping {residue.resname}")
+                continue
+
+            mask_list.append(chain.id)
+            if residue.resname in {"ALA", "GLY"}:
+                coords_list.append(residue["CA"].coord)
+            else:
+                coords_list.append(residue["CB"].coord)
+    coords = np.array(coords_list)
+    mask = np.array(mask_list)
+
+    return distance_matrix(coords, coords), mask

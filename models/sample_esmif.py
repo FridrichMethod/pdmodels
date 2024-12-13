@@ -18,7 +18,7 @@ from models.globals import AA_ALPHABET
 def sample_complex(
     model,
     alphabet,
-    pdbfile: str,
+    pdb_path: str,
     output_path: str,
     target_chain_id: str = "A",
     batch_size: int = 1,
@@ -36,7 +36,7 @@ def sample_complex(
         ESM-IF model.
     alphabet: Alphabet
         Alphabet object.
-    pdbfile: str
+    pdb_path: str
         Path to the PDB file.
     output_path: str
         Path to save the sampled sequences.
@@ -58,7 +58,7 @@ def sample_complex(
 
     device = next(model.parameters()).device
 
-    struct = load_structure(pdbfile)
+    struct = load_structure(pdb_path)
     native_coords, native_seqs = extract_coords_from_complex(struct)
     all_coords = _concatenate_coords(
         native_coords, target_chain_id, padding_length=padding_length
@@ -125,7 +125,7 @@ def sample_complex(
 
     sampled_target_seq_tokens = sampled_tokens[:, 1 : l + 1].cpu().detach()  # (B, l)
 
-    name = os.path.splitext(os.path.basename(pdbfile))[0]
+    name = os.path.splitext(os.path.basename(pdb_path))[0]
 
     if index_offset:
         with open(output_path, "a", encoding="utf-8") as f:

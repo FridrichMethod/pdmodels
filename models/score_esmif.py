@@ -63,7 +63,7 @@ def _concatenate_seqs(
 def score_complex(
     model: GVPTransformerModel,
     alphabet: Alphabet,
-    pdbfile: str,
+    pdb_path: str,
     target_seq_list: list[str] | None = None,
     target_chain_id: str = "A",
     padding_length: int = 10,
@@ -77,7 +77,7 @@ def score_complex(
         The GVPTransformerModel model from ESM-IF.
     alphabet: Alphabet
         The alphabet used for encoding the sequences.
-    pdbfile: str
+    pdb_path: str
         The path to the PDB file.
     target_seq_list: list[str] | None
         A list of sequences of the same single chain to score towards the complex structure.
@@ -104,7 +104,7 @@ def score_complex(
 
     device = next(model.parameters()).device
 
-    struct = load_structure(pdbfile)
+    struct = load_structure(pdb_path)
     native_coords, native_seqs = extract_coords_from_complex(struct)
     if target_seq_list is None:
         target_seq_list = [native_seqs[target_chain_id]]
@@ -193,7 +193,7 @@ def main(args):
     entropy, loss, perplexity = score_complex(
         esmif_model,
         esmif_alphabet,
-        args.pdbfile,
+        args.pdb_path,
         target_seq_list=args.target_seq_list,
         target_chain_id=args.target_chain_id,
         padding_length=args.padding_length,
@@ -211,7 +211,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("pdbfile", type=str, help="Path to the PDB file.")
+    parser.add_argument("pdb_path", type=str, help="Path to the PDB file.")
     parser.add_argument(
         "--output_path",
         type=str,

@@ -136,7 +136,7 @@ class LigandMPNNBatch(ProteinMPNN):
 
 def score_complex(
     model: LigandMPNNBatch,
-    pdbfile: str,
+    pdb_path: str,
     seqs_list: list[str] | None = None,
     chains_to_design: str = "",
     redesigned_residues: str = "",
@@ -149,7 +149,7 @@ def score_complex(
     ------
     model: LigandMPNNBatch
         The LigandMPNN model to use for scoring.
-    pdbfile: str
+    pdb_path: str
         The path to the PDB file containing the complex structure.
     seqs_list: list[str] | None
         A list of sequences to score towards the complex structure.
@@ -187,7 +187,7 @@ def score_complex(
     device = next(model.parameters()).device
 
     protein_dict = parse_PDB(
-        pdbfile,
+        pdb_path,
         device=device,
         parse_all_atoms=use_side_chain_context,
     )[0]
@@ -322,7 +322,7 @@ def main(args):
 
     entropy, loss, perplexity = score_complex(
         ligand_mpnn,
-        args.pdbfile,
+        args.pdb_path,
         seqs_list=args.seqs_list,
         chains_to_design=args.chains_to_design,
         redesigned_residues=args.redesigned_residues,
@@ -341,7 +341,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("pdbfile", type=str, help="Path to the PDB file.")
+    parser.add_argument("pdb_path", type=str, help="Path to the PDB file.")
     parser.add_argument("output_path", type=str, help="Path to save the output.")
     parser.add_argument(
         "--seqs_list",
