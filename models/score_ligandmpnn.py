@@ -4,6 +4,7 @@ import sys
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from models.data_utils import element_dict_rev, featurize, parse_PDB
 from models.globals import AA_DICT
@@ -72,6 +73,7 @@ class LigandMPNNBatch(ProteinMPNN):
         mask_enc = feature_dict["mask"]
         chain_mask_enc = feature_dict["chain_mask"]
         randn = feature_dict["randn"]
+        symmetry_list_of_lists = feature_dict["symmetry_residues"]
         B, L = S_true_enc.shape  # B can be larger than 1
         device = S_true_enc.device
 
@@ -84,17 +86,41 @@ class LigandMPNNBatch(ProteinMPNN):
             mask = torch.clone(mask_enc)
             S_true = torch.clone(S_true_enc)
 
-            if use_sequence:
-                order_mask = torch.ones(chain_mask_enc.shape[1], device=device).float()
-                order_mask[idx] = 0.0
+            # mask the target residue
+            # TODO: check if the mask is applied correctly
+            order_mask = torch.ones(chain_mask_enc.shape[1], device=device)
+            for symmetry_list in symmetry_list_of_lists:
+                if idx in symmetry_list:
+                    order_mask[symmetry_list] = 0
+                    break
             else:
-                order_mask = torch.zeros(chain_mask_enc.shape[1], device=device).float()
-                order_mask[idx] = 1.0
+                order_mask[idx] = 0
+            if not use_sequence:
+                order_mask = 1 - order_mask
             decoding_order = torch.argsort(
                 (order_mask + 0.0001) * (torch.abs(randn))
             )  # [numbers will be smaller for places where chain_M = 0.0 and higher for places where chain_M = 1.0]
-            E_idx = E_idx.repeat(B_decoder, 1, 1)
-            permutation_matrix_reverse = torch.nn.functional.one_hot(
+
+            # aggregate symmetry residues together
+            if symmetry_list_of_lists:
+                new_decoding_orders: list[torch.Tensor] = []
+                for i_dec in range(B_decoder):
+                    new_decoding_order: list[int] = []
+                    for t_dec in decoding_order[i_dec].cpu().numpy():
+                        if t_dec in new_decoding_order:
+                            continue
+                        for symmetry_list in symmetry_list_of_lists:
+                            if t_dec in symmetry_list:
+                                new_decoding_order.extend(symmetry_list)
+                                break
+                        else:
+                            new_decoding_order.append(t_dec)
+                    new_decoding_orders.append(
+                        torch.tensor(new_decoding_order, device=device)
+                    )
+                decoding_order = torch.stack(new_decoding_orders)
+
+            permutation_matrix_reverse = F.one_hot(
                 decoding_order, num_classes=L
             ).float()
             order_mask_backward = torch.einsum(
@@ -104,6 +130,7 @@ class LigandMPNNBatch(ProteinMPNN):
                 permutation_matrix_reverse,
             )
 
+            E_idx = E_idx.repeat(B_decoder, 1, 1)
             mask_attend = torch.gather(order_mask_backward, 2, E_idx).unsqueeze(-1)
             mask_1D = mask.view([1, L, 1, 1])  # mask_1D[0] should be one
             mask_bw = mask_1D * mask_attend
@@ -141,6 +168,7 @@ def score_complex(
     chains_to_design: str = "",
     redesigned_residues: str = "",
     use_side_chain_context: bool = False,
+    symmetry_residues: str = "",
     verbose: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Score protein sequences towards a given complex structure.
@@ -163,6 +191,8 @@ def score_complex(
     use_side_chain_context: bool
         Whether to use side chain context in the model.
         Use side chain context of all fixed residues if True, otherwise use only backbone context.
+    symmetry_residues: str
+        A pipe-separated list of comma-separated symmetry residues.
     verbose: bool
         Whether to print the parsed ligand atoms and their types.
 
@@ -192,6 +222,13 @@ def score_complex(
         parse_all_atoms=use_side_chain_context,
     )[0]
 
+    chain_letters = protein_dict["chain_letters"]
+    R_idx = protein_dict["R_idx"].cpu().tolist()
+    res_to_idx = {
+        f"{chain_letter}{R_id}": idx
+        for idx, (chain_letter, R_id) in enumerate(zip(chain_letters, R_idx))
+    }
+
     chains_to_design_list = [
         chain.strip() for chain in chains_to_design.split(",") if chain.strip()
     ]  # chains_to_design.split(",") will not remove empty strings
@@ -199,10 +236,6 @@ def score_complex(
 
     # create chain_mask to notify which residues are fixed (0) and which need to be designed (1)
     if chains_to_design_list or redesigned_residues_list:
-        chain_letters = protein_dict["chain_letters"]
-        R_idx = protein_dict["R_idx"].cpu().tolist()
-        assert len(chain_letters) == len(R_idx)
-
         protein_dict["chain_mask"] = torch.tensor(
             [
                 (chain_letter in chains_to_design_list)
@@ -242,6 +275,28 @@ def score_complex(
         feature_dict["S"].shape[1],
         device=device,
     )
+
+    # remap symmetry residues
+    # make sure that the symmetry residues are non-empty and pairwise disjoint
+    symmetry_list_of_lists: list[list[int]] = []
+    for symmetry_group in symmetry_residues.split("|"):
+        symmetry_set: set[int] = {
+            res_to_idx[res.strip()]
+            for res in symmetry_group.split(",")
+            if res.strip() in res_to_idx
+        }
+        if not symmetry_set:
+            continue
+        symmetry_list_of_lists_copy: list[list[int]] = []
+        for symmetry_list in symmetry_list_of_lists:
+            if symmetry_set.intersection(symmetry_list):
+                symmetry_set.update(symmetry_list)
+            else:
+                symmetry_list_of_lists_copy.append(symmetry_list)
+        symmetry_list_of_lists = symmetry_list_of_lists_copy
+        symmetry_list_of_lists.append(list(symmetry_set))
+
+    feature_dict["symmetry_residues"] = symmetry_list_of_lists
 
     use_sequence = True
     with torch.no_grad():
@@ -327,6 +382,7 @@ def main(args):
         chains_to_design=args.chains_to_design,
         redesigned_residues=args.redesigned_residues,
         use_side_chain_context=args.use_side_chain_context,
+        symmetry_residues=args.symmetry_residues,
         verbose=args.verbose,
     )
 
@@ -358,6 +414,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--use_side_chain_context", action="store_true", help="Use side chain context."
+    )
+    parser.add_argument(
+        "--symmetry_residues", type=str, default="", help="Symmetry residues."
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Print parsed ligand atoms and types."

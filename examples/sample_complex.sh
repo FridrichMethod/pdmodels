@@ -2,7 +2,7 @@
 
 PYTHONPATH=$(pwd)/.. python -m models.run \
     --model_type "ligand_mpnn" \
-    --checkpoint_ligand_mpnn "../model_params/ligandmpnn_v_32_020_25.pt" \
+    --checkpoint_ligand_mpnn "../models/model_params/ligandmpnn_v_32_020_25.pt" \
     --temperature 0.3 \
     --pdb_path "$1" \
     --out_folder "$2" \
