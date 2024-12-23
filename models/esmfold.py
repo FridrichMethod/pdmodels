@@ -14,7 +14,7 @@ class ESMFold:
 
     def __init__(
         self,
-        device: Optional[Union[str, torch.device]] = "cpu",
+        device: Optional[Union[str, torch.device]] = None,
         chunk_size: Optional[int] = None,
     ):
         self.model: esm.esmfold.v1.esmfold.ESMFold = esm.pretrained.esmfold_v1()

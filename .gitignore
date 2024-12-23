@@ -172,4 +172,4 @@ model_params/
 notebooks/
 pdbs/
 results/
-hpc/
+test/
