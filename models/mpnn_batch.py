@@ -224,7 +224,6 @@ class MPNNBatch:
     def __init__(
         self,
         checkpoint_path: str,
-        *,
         model_type: Literal["protein_mpnn", "ligand_mpnn"] = "protein_mpnn",
         device: str | torch.device | None = None,
         ligand_mpnn_use_side_chain_context: bool = False,
@@ -424,7 +423,7 @@ class MPNNBatch:
 
     def _verbose_message(self, protein_dict: dict[str, Any]) -> None:
         """Print the parsed ligand atoms and their types."""
-        atom_masks = protein_dict.get("Y_m", torch.tensor([])).cpu().numpy()
+        atom_masks = protein_dict.get("Y_m", torch.tensor([0])).cpu().numpy()
         if lig_atom_num := np.sum(atom_masks):
             atom_coords = protein_dict["Y"].cpu().numpy()
             atom_types = protein_dict["Y_t"].cpu().numpy()

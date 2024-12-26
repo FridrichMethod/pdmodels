@@ -1,8 +1,10 @@
 import argparse
 import json
 import os
+import pickle
 import re
 import sys
+import time
 from typing import Literal, Sequence
 
 import numpy as np
@@ -15,11 +17,13 @@ from Bio.PDB import PDBParser, is_aa
 from pymol import cmd
 from scipy.spatial import distance_matrix
 from tqdm.auto import tqdm
+from tqdm.contrib.concurrent import process_map, thread_map
 
 from models.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
 
 
 def _normalize_submat(submat: np.ndarray) -> np.ndarray:
+    """Normalize a substitution matrix to make the sum of the off-diagonal elements equal to 1."""
     assert len(submat.shape) == 2
     assert submat.shape[0] == submat.shape[1] == 20
 
@@ -48,16 +52,16 @@ def count_mutations(
 
     Args
     ----
-    seqs : list[str]
+    seqs: list[str]
         List of sequences to compare.
-    seq0 : str
+    seq0: str
         Reference sequence.
-    substitution_matrix : str
+    substitution_matrix: str
         Substitution matrix to use. Can be "identity" or a name from Bio.Align.substitution_matrices.load().
 
     Returns
     -------
-    mutation_counts : np.ndarray
+    mutation_counts: np.ndarray
         Number of mutations between each sequence and the reference sequence.
     """
 
@@ -99,16 +103,16 @@ def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFr
 
     Args
     ----
-    fasta_file : str
+    fasta_file: str
         Path to the fasta file.
-    idx : str
+    idx: str
         Key in the title line to add a prefix.
-    prefix : str
+    prefix: str
         Prefix to add to a specific value of the title key.
 
     Returns
     -------
-    seqs_info : pd.DataFrame
+    seqs_info: pd.DataFrame
         DataFrame with columns from the title line and the sequence.
     """
 
@@ -203,9 +207,65 @@ def calculate_distance_matrix(pdb_path: str) -> tuple[np.ndarray, np.ndarray]:
     return distance_matrix(coords, coords), mask
 
 
+def extract_from_af2ig(file_path: str, seqs: str) -> pd.Series:
+    """Extract information from an AF2-ig output .pkl file."""
+    with open(file_path, "rb") as f:
+        data = pickle.load(f)
+
+    plddt = data["plddt"]
+    predicted_aligned_error = data["predicted_aligned_error"]
+    ptm = data["ptm"].item()
+    ranking_confidence = data["ranking_confidence"]
+
+    seq_list = seqs.split(":")
+    chain_num = len(seq_list)
+    assert sum(len(seq) for seq in seq_list) == len(plddt)
+
+    chain_index = np.array(sum(([i] * len(seq) for i, seq in enumerate(seq_list)), []))
+    chain_index_one_hot = np.eye(chain_num, dtype=bool)[chain_index].T
+
+    pkl_dict = {}
+    pkl_dict["id"] = os.path.splitext(os.path.basename(file_path))[0].removeprefix(
+        "result_"
+    )
+    pkl_dict["plddt"] = np.mean(plddt)
+    pkl_dict["pae"] = np.mean(predicted_aligned_error)
+    pkl_dict["ptm"] = ptm
+    pkl_dict["ranking_confidence"] = ranking_confidence
+
+    if "iptm" in data:
+        iptm = data["iptm"].item()
+        pkl_dict["iptm"] = iptm
+
+    for i in range(chain_num):
+        chain_id_1 = PDB_CHAIN_IDS[i]
+        chain_mask_1 = chain_index_one_hot[i]
+        res_num_1 = np.sum(chain_mask_1)
+        mean_plddt_1 = np.mean(plddt[chain_mask_1])
+        pkl_dict[f"plddt_{chain_id_1}"] = mean_plddt_1.item()
+
+        for j in range(i, chain_num):
+            chain_id_2 = PDB_CHAIN_IDS[j]
+            chain_mask_2 = chain_index_one_hot[j]
+            res_num_2 = np.sum(chain_mask_2)
+            pae_interaction_1_2 = (
+                np.sum(predicted_aligned_error[chain_mask_1][:, chain_mask_2])
+                + np.sum(predicted_aligned_error[chain_mask_2][:, chain_mask_1])
+            ) / (2 * res_num_1 * res_num_2)
+            pkl_dict[f"pae_interaction_{chain_id_1}_{chain_id_2}"] = (
+                pae_interaction_1_2.item()
+            )
+
+    return pd.Series(pkl_dict)
+
+
 def extract_from_esmfold(file_path: str) -> pd.Series:
-    """Extract information from an ESMFold output .pt file."""
-    data = torch.load(file_path, weights_only=True)
+    """Extract information from an ESMFold output .pt file.
+
+    Can be accelerated with multi-threading.
+    """
+
+    data = torch.load(file_path, weights_only=True, map_location="cpu")
 
     atom37_atom_exists = data["atom37_atom_exists"].cpu().squeeze(0)
     linker_mask = torch.any(atom37_atom_exists, dim=-1)
@@ -273,26 +333,27 @@ def calculate_rmsd(
     mobile: str,
     target: str,
     how: Literal["align", "super"] = "align",
-    on: str = "all",
-    reports: str | Sequence[str] = "all",
+    on: str | tuple[str, str] = "all",
+    reports: Sequence[str | tuple[str, str]] = ("all",),
     **kwargs,
 ) -> list[float]:
     """Calculate the RMSD between the mobile structure and the target structure.
 
     Args
     ----
-    mobile : str
+    mobile: str
         The path to the mobile structure.
-    target : str
+    target: str
         The path to the target structure.
-    how : Literal["align", "super"]
+    how: Literal["align", "super"]
         The method to calculate the RMSD. Default is "align".
         align: using a sequence alignment followed by a structural superposition (for sequence similarity > 30%)
         super: using a sequence-independent structure-based superposition (for low sequence similarity)
-    on : str
+    on: str | tuple[str, str]
         The selection to align/superimpose the structures. Default is "all".
-    reports : str | Sequence[str]
-        The selection to calculate the RMSD. Default is "all".
+    reports: Sequence[str | tuple[str, str]]
+        The selection to calculate the RMSD. Default is ("all",).
+
     **kwargs
         Additional keyword arguments for `cmd.align` or `cmd.super`.
 
@@ -300,43 +361,61 @@ def calculate_rmsd(
     -------
     rmsds : list[float]
         The RMSDs between the mobile structure and the target structure for each report selection.
+
+    Notes
+    -----
+    - This function runs in a PyMOL session, so it cannot be used in multi-threading.
+        Use multi-processing instead.
+    - If a tuple is provided as selection, the first element is for the mobile structure,
+        and the second element is for the target structure.
     """
 
-    with PyMOLSession():
-
-        # Set the report selections
-        if isinstance(reports, str):
-            reports = [reports]
-
-        # Set the alignment/superimposition method
-        if how == "align":
-            func = cmd.align
-        elif how == "super":
-            func = cmd.super
+    def _sele_type_check(sele: str | tuple[str, str]) -> tuple[str, str]:
+        if isinstance(sele, str):
+            return sele, sele
+        elif (
+            isinstance(sele, tuple)
+            and len(sele) == 2
+            and all(isinstance(s, str) for s in sele)
+        ):
+            return sele
         else:
-            raise ValueError(f"Invalid method: {how}")
+            raise ValueError(f"Invalid selection: {sele}")
 
+    left_on, right_on = _sele_type_check(on)
+
+    # Set the alignment/superimposition method
+    if how == "align":
+        func = cmd.align
+    elif how == "super":
+        func = cmd.super
+    else:
+        raise ValueError(f"Invalid method: {how}")
+
+    with PyMOLSession():
         # Load the structures
-        cmd.load(target, "target")
         cmd.load(mobile, "mobile")
+        cmd.load(target, "target")
 
         # Align/superimpose the structures
-        func(f"mobile and {on}", f"target and {on}", **kwargs)
+        func(f"mobile and {left_on}", f"target and {right_on}", **kwargs)
 
         rmsds = []
         for i, report in enumerate(reports):
+            left_report, right_report = _sele_type_check(report)
+
             # Create the alignment object without touching the structures
             func(
-                f"mobile and {report}",
-                f"target and {report}",
+                f"mobile and {left_report}",
+                f"target and {right_report}",
                 cycles=0,
                 transform=0,
                 object=f"aln_{i}",
             )
             # Calculate the RMSD between the matched atoms
             rmsd = cmd.rms_cur(
-                f"mobile and {report} and aln_{i}",
-                f"target and {report} and aln_{i}",
+                f"mobile and {left_report} and aln_{i}",
+                f"target and {right_report} and aln_{i}",
                 matchmaker=-1,
             )
             rmsds.append(rmsd)
