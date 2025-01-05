@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import json
 import os
 import pickle
@@ -7,17 +8,19 @@ import sys
 import time
 from typing import Literal, Sequence
 
-import numpy as np
-import pandas as pd
-import pymol
-import torch
-import torch.nn.functional as F
-from Bio.Align import substitution_matrices
-from Bio.PDB import PDBParser, is_aa
-from pymol import cmd
-from scipy.spatial import distance_matrix
-from tqdm.auto import tqdm
-from tqdm.contrib.concurrent import process_map, thread_map
+# TODO: Resolve the import error in the following line
+with contextlib.suppress(ImportError):
+    import numpy as np
+    import pandas as pd
+    import pymol
+    import torch
+    import torch.nn.functional as F
+    from Bio.Align import substitution_matrices
+    from Bio.PDB import PDBParser, is_aa
+    from pymol import cmd
+    from scipy.spatial import distance_matrix
+    from tqdm.auto import tqdm
+    from tqdm.contrib.concurrent import process_map, thread_map
 
 from models.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
 
@@ -324,6 +327,7 @@ class PyMOLSession:
     def __enter__(self):
         cmd.reinitialize()  # Clean up the PyMOL session
         pymol.finish_launching(["pymol", "-cq"])  # Launch PyMOL in headless mode
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         cmd.reinitialize()  # Clean up the PyMOL session
