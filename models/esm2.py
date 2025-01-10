@@ -1,41 +1,38 @@
-import argparse
-
 import torch
 from transformers import AutoTokenizer, EsmForMaskedLM
 
-from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from models.basemodels import TorchModel
+from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET, ScoreDict
 
 
-class ESM2:
+class ESM2(TorchModel):
     """ESM2 model for scoring complex structures."""
 
     def __init__(
         self, model_name: str, device: str | torch.device | None = None
     ) -> None:
+        """Initialize the ESM2 model."""
+        super().__init__(device=device)
+
         self.model_name = model_name
-        self.device = device
 
         self.model, self.tokenizer = self._load_model()
 
     def _load_model(self) -> tuple[EsmForMaskedLM, AutoTokenizer]:
+        """Load the ESM2 model and tokenizer from the transformers library."""
         model = EsmForMaskedLM.from_pretrained(self.model_name)
         model = model.to(self.device)  # type: ignore
         model = model.eval()
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         return model, tokenizer  # type: ignore
-    
-    def to(self, device: str | torch.device | None) -> None:
-        """Move the model to the given device."""
-        self.device = device
-        self.model = self.model.to(self.device)  # type: ignore
 
     def score(
         self,
         seqs_list: list[str],
         padding_length: int = 10,
         verbose: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> ScoreDict:
         """Calculate the scores of a complex sequence by ESM2 model.
 
         Mask every single position of the sequence and calculate the entropy of the masked token.
@@ -53,7 +50,7 @@ class ESM2:
 
         Returns
         -------
-        output_dict: dict[str, torch.Tensor]
+        output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
                 -log{logits} of the masked token at each position.
             loss: torch.Tensor[B, L]
@@ -117,4 +114,6 @@ class ESM2:
                 print(f"perplexity: {perplexity[l].item()}")
                 print()
 
-        return entropy, loss, perplexity
+        output_dict = {"entropy": entropy, "loss": loss, "perplexity": perplexity}
+
+        return output_dict

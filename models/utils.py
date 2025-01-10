@@ -1,26 +1,20 @@
-import argparse
-import contextlib
-import json
 import os
 import pickle
 import re
-import sys
 import time
 from typing import Literal, Sequence
 
-# TODO: Resolve the import error in the following line
-with contextlib.suppress(ImportError):
-    import numpy as np
-    import pandas as pd
-    import pymol
-    import torch
-    import torch.nn.functional as F
-    from Bio.Align import substitution_matrices
-    from Bio.PDB import PDBParser, is_aa
-    from pymol import cmd
-    from scipy.spatial import distance_matrix
-    from tqdm.auto import tqdm
-    from tqdm.contrib.concurrent import process_map, thread_map
+import numpy as np
+import pandas as pd
+import pymol
+import torch
+import torch.nn.functional as F
+from Bio.Align import substitution_matrices
+from Bio.PDB import PDBParser, is_aa
+from pymol import cmd
+from scipy.spatial import distance_matrix
+from tqdm.auto import tqdm
+from tqdm.contrib.concurrent import process_map, thread_map
 
 from models.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
 
@@ -101,12 +95,12 @@ def count_mutations(
     return submat_norm[seqs_idx, seq0_idx].sum(axis=1)
 
 
-def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFrame:
+def parse_fasta(fasta_path: str, idx: str = "id", prefix: str = "") -> pd.DataFrame:
     """Parse a fasta file into a pandas DataFrame.
 
     Args
     ----
-    fasta_file: str
+    fasta_path: str
         Path to the fasta file.
     idx: str
         Key in the title line to add a prefix.
@@ -122,7 +116,7 @@ def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFr
     title_regex = r"^>(\w+=[\w\d_.]+)(, \w+=[\w\d_.]+)*$"
     sequence_regex = r"^[ACDEFGHIKLMNPQRSTVWY:]+$"
 
-    with open(fasta_file) as f:
+    with open(fasta_path, "r") as f:
         lines = f.readlines()
 
     titles = []
@@ -159,6 +153,16 @@ def parse_fasta(fasta_file: str, idx: str = "id", prefix: str = "") -> pd.DataFr
         title_dicts.append(title_dict)
 
     return pd.DataFrame(title_dicts)
+
+
+def df_to_fasta(df: pd.DataFrame, output_path: str) -> None:
+    """Write a DataFrame to a fasta file."""
+    with open(output_path, "w") as f:
+        for _, row in df.iterrows():
+            title = ", ".join(
+                f"{key}={value}" for key, value in row.items() if key != "sequence"
+            )
+            f.write(f">{title}\n{row['sequence']}\n")
 
 
 def get_top_percentile(
@@ -425,3 +429,41 @@ def calculate_rmsd(
             rmsds.append(rmsd)
 
     return rmsds
+
+
+def get_dms_libary(seqs_wt: str) -> list[tuple[str, str]]:
+    """Generate a deep mutational scanning library for a given sequence."""
+    dms_library = [("wt", seqs_wt)]
+    for i, res in enumerate(seqs_wt):
+        if res not in AA_ALPHABET:
+            continue
+        dms_library.extend(
+            (f"{res}{i+1}{res_mut}", seqs_wt[:i] + res_mut + seqs_wt[i + 1 :])
+            for res_mut in AA_ALPHABET
+            if res_mut != res
+        )
+    return dms_library
+
+
+class Timer:
+    """Context manager to measure the time elapsed in a block of code.
+
+    Example
+    -------
+    >>> with Timer() as t:
+    >>>     time.sleep(1)
+    >>> print(t.elapsed)
+    """
+
+    def __init__(self):
+        self.start = 0
+        self.end = 0
+        self.elapsed = 0
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end = time.time()
+        self.elapsed = self.end - self.start

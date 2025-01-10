@@ -163,9 +163,6 @@ cython_debug/
 
 # intermediate files
 *.pt
-*.pdb
-*.fasta
-*.fa
 
 # intermediate folders
 model_params/
@@ -173,3 +170,4 @@ notebooks/
 pdbs/
 results/
 test/
+archive/

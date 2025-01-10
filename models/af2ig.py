@@ -4,7 +4,6 @@ import os
 import pickle
 import queue
 import shutil
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Mapping, MutableMapping
 
@@ -23,6 +22,9 @@ from alphafold.data.tools import hhsearch, kalign
 from alphafold.model import config, data, model
 from Bio import SeqIO
 from Bio.PDB import PDBParser, is_aa
+
+from models.basemodels import BaseModel
+from models.utils import Timer
 
 GeneralFeatureDict = MutableMapping[str, list[Any]]
 
@@ -701,7 +703,7 @@ class DataPipelineMultimer:
         return feature_dict_multimer
 
 
-class Af2Ig:
+class Af2Ig(BaseModel):
     """AlphaFold2 initial guess model for monomer and multimer prediction."""
 
     def __init__(
@@ -711,12 +713,16 @@ class Af2Ig:
         data_dir: str,
         data_pipeline: DataPipeline | DataPipelineMultimer,
     ) -> None:
+        """Initialize the AlphaFold2 model."""
+
+        super().__init__()
+
         self.model_name = model_name
         self.is_multimer = is_multimer
         self.data_dir = data_dir
         self.data_pipeline = data_pipeline
 
-        self.model_runner = self._load_model()
+        self.model = self._load_model()
 
     def _load_model(self) -> model.RunModel:
         """Loads the user-specified AlphaFold2 model."""
@@ -728,9 +734,8 @@ class Af2Ig:
         model_params = data.get_model_haiku_params(
             model_name=self.model_name, data_dir=self.data_dir
         )
-        model_runner = model.RunModel(model_config, model_params)
 
-        return model_runner
+        return model.RunModel(model_config, model_params)
 
     def predict(
         self,
@@ -757,10 +762,10 @@ class Af2Ig:
         logging.info("Predicting %s", domain_name)
 
         # Run the model
-        processed_feature_dict = self.model_runner.process_features(
+        processed_feature_dict = self.model.process_features(
             feature_dict, random_seed=random_seed
         )
-        prediction_result = self.model_runner.predict(
+        prediction_result = self.model.predict(
             processed_feature_dict, random_seed=random_seed
         )
 
@@ -889,7 +894,7 @@ class Af2Ig:
             executor.submit(self._process, q_in, q_out, random_seed=random_seed)
             executor.submit(self._postprocess, q_out, output_dir)
 
-    def __call__(
+    def run(
         self,
         fasta_path: str,
         output_dir: str,
@@ -934,7 +939,7 @@ class Af2Ig:
                     logging.error(e)
 
 
-def main(args):
+def cli(args: argparse.Namespace) -> None:
     """Runs AlphaFold2 initial guess for monomer and multimer prediction."""
 
     # Set logging level
@@ -967,19 +972,18 @@ def main(args):
     # Run AlphaFold2 initial guess
     af2ig = Af2Ig(model_name, is_multimer, data_dir, data_pipeline)
 
-    t_start = time.perf_counter()
-    af2ig(
-        fasta_path,
-        output_dir,
-        random_seed=random_seed,
-        asynchronous=args.asynchronous,
-    )
-    t_end = time.perf_counter()
+    with Timer() as timer:
+        af2ig.run(
+            fasta_path,
+            output_dir,
+            random_seed=random_seed,
+            asynchronous=args.asynchronous,
+        )
 
-    logging.info("Total time: %s", t_end - t_start)
+    logging.info("Total time: %s", timer.elapsed)
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser()
 
     # General arguments
@@ -1003,4 +1007,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args)
+    cli(args)
+
+
+if __name__ == "__main__":
+    main()

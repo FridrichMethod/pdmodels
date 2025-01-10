@@ -14,4 +14,5 @@ PYTHONPATH=$(pwd)/../../.. python -m models.af2ig \
     --random_seed=0 \
     --msa_dir=./msas \
     --template_dir=./templates \
-    --verbose
+    --verbose \
+    # --asynchronous

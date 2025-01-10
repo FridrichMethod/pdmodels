@@ -5,7 +5,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from models.globals import AA_DICT
+from models.basemodels import TorchModel
+from models.globals import AA_DICT, ScoreDict
 from models.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
 from models.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
 
@@ -213,7 +214,7 @@ class ProteinMPNNBatch(ProteinMPNN):
         }
 
 
-class MPNN:
+class MPNN(TorchModel):
     """The MPNN model interface for batch sampling and scoring."""
 
     def __init__(
@@ -251,7 +252,11 @@ class MPNN:
             in the score method will have no effect
         """
 
+        super().__init__(device=device)
+
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        self.checkpoint = checkpoint
+
         if model_type == "ligand_mpnn":
             atom_context_num = checkpoint["atom_context_num"]
         else:
@@ -262,7 +267,6 @@ class MPNN:
         k_neighbors = checkpoint["num_edges"]
 
         self.model_type = model_type
-        self.device = device
 
         self.atom_context_num = atom_context_num
         self.ligand_mpnn_use_side_chain_context = ligand_mpnn_use_side_chain_context
@@ -271,11 +275,9 @@ class MPNN:
         self.k_neighbors = k_neighbors
 
         self.seed = seed
-        self.model = self._load_model(checkpoint["model_state_dict"])
+        self.model = self._load_model()
 
-    def _load_model(
-        self, model_state_dict: dict[str, torch.Tensor]
-    ) -> ProteinMPNNBatch:
+    def _load_model(self) -> ProteinMPNNBatch:
         """Load the MPNN model from the checkpoint file."""
         if self.seed is not None:
             torch.manual_seed(self.seed)
@@ -295,16 +297,11 @@ class MPNN:
             ligand_mpnn_use_side_chain_context=self.ligand_mpnn_use_side_chain_context,
         )
 
-        model.load_state_dict(model_state_dict)
+        model.load_state_dict(self.checkpoint["model_state_dict"])
         model.to(self.device)
         model.eval()
 
         return model
-
-    def to(self, device: str | torch.device | None) -> None:
-        """Move the model to the given device."""
-        self.device = device
-        self.model = self.model.to(self.device)  # type: ignore
 
     def _parse_PDB(
         self,
@@ -325,8 +322,9 @@ class MPNN:
         R_idx: list[int],
         chains_to_design: str,
         redesigned_residues: str,
+        use_sequence: bool = True,
     ) -> torch.Tensor:
-        """Create a chain mask to notify which residues are fixed and which need to be designed.
+        """Create a chain mask to notify which residues are fixed (0) and which need to be designed (1).
 
         Args
         ------
@@ -340,12 +338,17 @@ class MPNN:
         redesigned_residues: str
             A space-separated list of chain letter and residue number pairs of the redesigned residues.
             This option is only used to identify the regions not to use side chain context.
+        use_sequence: bool
+            Whether to use the sequence information in the scoring method.
 
         Returns
         -------
         chain_mask: torch.Tensor
             A binary tensor notifying which residues are redesignable.
         """
+
+        if not use_sequence:
+            return torch.ones(len(R_idx), device=self.device)
 
         chains_to_design_list = [
             chain.strip() for chain in chains_to_design.split(",") if chain.strip()
@@ -447,7 +450,7 @@ class MPNN:
         autoregressive_score: bool = False,
         use_sequence: bool = True,
         verbose: bool = False,
-    ) -> dict[str, torch.Tensor]:
+    ) -> ScoreDict:
         """Score protein sequences towards a given complex structure.
 
         Args
@@ -472,7 +475,7 @@ class MPNN:
 
         Returns
         -------
-        output_dict: dict[str, torch.Tensor]
+        output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
                 -log{logits} of the masked token at each position.
             loss: torch.Tensor[B, L]

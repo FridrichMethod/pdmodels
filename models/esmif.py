@@ -1,10 +1,10 @@
-import argparse
 import os
-import sys
+from typing import Sequence
 
 import esm
 import numpy as np
 import torch
+import torch.nn.functional as F
 from esm.data import Alphabet
 from esm.inverse_folding.gvp_transformer import GVPTransformerModel
 from esm.inverse_folding.multichain_util import (
@@ -13,7 +13,50 @@ from esm.inverse_folding.multichain_util import (
 )
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
-from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from models.basemodels import TorchModel
+from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET, ScoreDict
+
+
+class CoordBatchConverterNew(CoordBatchConverter):
+
+    def __call__(self, raw_batch: Sequence[tuple], device=None):
+        """Bug fix for the CoordBatchConverter class."""
+        self.alphabet.cls_idx = self.alphabet.get_idx("<cath>")
+        batch = []
+        for coords, confidence, seq in raw_batch:
+            if confidence is None:
+                confidence = 1.0
+            if isinstance(confidence, float):
+                confidence = [float(confidence)] * len(coords)
+            if seq is None:
+                seq = "X" * len(coords)
+            batch.append(((coords, confidence), seq))
+
+        coords_and_confidence, strs, tokens = super(CoordBatchConverter, self).__call__(
+            batch
+        )
+
+        # pad beginning and end of each protein due to legacy reasons
+        coords = [
+            F.pad(
+                torch.tensor(cd), (0, 0, 0, 0, 1, 1), value=np.nan
+            )  # FIXED: pad nan instead of inf
+            for cd, _ in coords_and_confidence
+        ]
+        confidence = [
+            F.pad(torch.tensor(cf), (1, 1), value=-1.0)
+            for _, cf in coords_and_confidence
+        ]
+        coords = self.collate_dense_tensors(coords, pad_v=np.nan)
+        confidence = self.collate_dense_tensors(confidence, pad_v=-1.0)
+        if device is not None:
+            coords = coords.to(device)
+            confidence = confidence.to(device)
+            tokens = tokens.to(device)
+        padding_mask = torch.isnan(coords[:, :, 0, 0])
+        coord_mask = torch.isfinite(coords.sum(-2).sum(-1))
+        confidence = confidence * coord_mask + (-1.0) * padding_mask
+        return coords, confidence, strs, tokens, padding_mask
 
 
 def _concatenate_seqs(
@@ -62,11 +105,13 @@ def _concatenate_seqs(
     return target_seqs_concatenated, target_aa_concatenated
 
 
-class ESMIF:
+class ESMIF(TorchModel):
     """ESM-IF model for scoring and sampling redesigned sequences for a given complex structure."""
 
     def __init__(self, device: str | torch.device | None = None):
-        self.device = device
+        """Initialize the ESM-IF model."""
+        super().__init__(device=device)
+
         self.model, self.alphabet = self._load_model()
 
     def _load_model(self) -> tuple[GVPTransformerModel, Alphabet]:
@@ -77,11 +122,6 @@ class ESMIF:
 
         return model, alphabet  # type: ignore
 
-    def to(self, device: str | torch.device | None) -> None:
-        """Move the model to the given device."""
-        self.device = device
-        self.model = self.model.to(self.device)  # type: ignore
-
     def score(
         self,
         pdb_path: str,
@@ -89,7 +129,7 @@ class ESMIF:
         target_chain_id: str = "A",
         padding_length: int = 10,
         verbose: bool = False,
-    ) -> dict[str, torch.Tensor]:
+    ) -> ScoreDict:
         """Score target sequences towards a given complex structure.
 
         Args
@@ -107,7 +147,7 @@ class ESMIF:
 
         Returns
         -------
-        output_dict: dict[str, torch.Tensor]
+        output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
                 -log{logits} of the masked token at each position.
             loss: torch.Tensor[B, L]
@@ -124,10 +164,14 @@ class ESMIF:
         native_coords, native_seqs = extract_coords_from_complex(struct)
         if target_seq_list is None:
             target_seq_list = [native_seqs[target_chain_id]]
-        assert all(
-            len(target_seq) == len(native_seqs[target_chain_id])
+        elif any(
+            len(target_seq) != len(native_seqs[target_chain_id])
+            or any(aa not in AA_ALPHABET for aa in target_seq)
             for target_seq in target_seq_list
-        )
+        ):
+            raise ValueError(
+                "All target sequences should have the same length as the target chain in the native complex."
+            )
         target_seqs_list = [
             {
                 chain_id: (target_seq if chain_id == target_chain_id else seq)
@@ -156,7 +200,7 @@ class ESMIF:
         all_indices_array = np.array(all_indices_list)
         assert np.all(np.diff(all_indices_array, axis=0) == 0)
 
-        batch_converter = CoordBatchConverter(self.alphabet)
+        batch_converter = CoordBatchConverterNew(self.alphabet)
         batch = [(all_coords, None, all_seqs) for all_seqs in all_seqs_list]
         coords, confidence, _, tokens, padding_mask = batch_converter(
             batch, device=self.device
@@ -284,7 +328,7 @@ class ESMIF:
             )
         )
 
-        batch_converter = CoordBatchConverter(self.alphabet)
+        batch_converter = CoordBatchConverterNew(self.alphabet)
         batch = [(all_coords, None, None) for _ in range(B)]
         batch_coords, confidence, _, _, padding_mask = batch_converter(
             batch, device=self.device

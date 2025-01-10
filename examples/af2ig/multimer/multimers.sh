@@ -16,4 +16,5 @@ PYTHONPATH=$(pwd)/../../.. python -m models.af2ig \
     --msa_dir_name=msas \
     --pairing_msa_dir_name=pairing_msas \
     --template_dir_name=templates \
-    --verbose
+    --verbose \
+    # --asynchronous

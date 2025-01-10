@@ -1,28 +1,11 @@
-import contextlib
+import torch
 
-with contextlib.suppress(ImportError):
-    import torch
+from models.af2ig import Af2Ig
+from models.esm2 import ESM2
+from models.esmfold import ESMFold
+from models.esmif import ESMIF
+from models.mpnn import MPNN
 
-    torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cuda.matmul.allow_tf32 = False
 
-from models.globals import *
-
-with contextlib.suppress(ImportError):
-    from models.af2ig import *
-
-with contextlib.suppress(ImportError):
-    from models.esmfold import *
-
-with contextlib.suppress(ImportError):
-    from models.esm2 import *
-    from models.esmif import *
-    from models.mpnn import *
-
-
-__all__ = [
-    "Af2Ig",
-    "ESMFold",
-    "ESM2",
-    "ESMIF",
-    "MPNN",
-]
+__all__ = ["Af2Ig", "ESMFold", "ESM2", "ESMIF", "MPNN"]
