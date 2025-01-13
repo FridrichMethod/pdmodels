@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 from typing import Sequence
 
 import esm
@@ -14,7 +15,9 @@ from esm.inverse_folding.multichain_util import (
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
 from models.basemodels import TorchModel
-from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET, ScoreDict
+from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from models.types import ScoreDict
+from models.utils import clean_gpu_cache
 
 
 class CoordBatchConverterNew(CoordBatchConverter):
@@ -105,6 +108,31 @@ def _concatenate_seqs(
     return target_seqs_concatenated, target_aa_concatenated
 
 
+@lru_cache(maxsize=128)
+def load_native_coords_and_seqs(
+    pdb_path: str,
+) -> tuple[dict[str, np.ndarray], dict[str, str]]:
+    """Load the native coordinates and sequences from a PDB file.
+
+    Args:
+    ----
+    pdb_path: str
+        Path to the PDB file
+
+    Returns:
+    -------
+    native_coords: dict[str, np.ndarray]
+        Dictionary mapping chain ids to corresponding coordinates
+    native_seqs: dict[str, str]
+        Dictionary mapping chain ids to corresponding AA sequence
+    """
+
+    struct = load_structure(pdb_path)
+    native_coords, native_seqs = extract_coords_from_complex(struct)
+
+    return native_coords, native_seqs
+
+
 class ESMIF(TorchModel):
     """ESM-IF model for scoring and sampling redesigned sequences for a given complex structure."""
 
@@ -122,6 +150,7 @@ class ESMIF(TorchModel):
 
         return model, alphabet  # type: ignore
 
+    @clean_gpu_cache
     def score(
         self,
         pdb_path: str,
@@ -160,8 +189,7 @@ class ESMIF(TorchModel):
         - The target sequences should be of the same length as the target chain in the native complex.
         """
 
-        struct = load_structure(pdb_path)
-        native_coords, native_seqs = extract_coords_from_complex(struct)
+        native_coords, native_seqs = load_native_coords_and_seqs(pdb_path)
         if target_seq_list is None:
             target_seq_list = [native_seqs[target_chain_id]]
         elif any(
@@ -244,7 +272,7 @@ class ESMIF(TorchModel):
                 print(f"perplexity: {perplexity[l].item()}")
                 print()
 
-        output_dict = {
+        output_dict: ScoreDict = {
             "entropy": entropy,
             "loss": loss,
             "perplexity": perplexity,
@@ -252,6 +280,7 @@ class ESMIF(TorchModel):
 
         return output_dict
 
+    @clean_gpu_cache
     def sample(
         self,
         pdb_path: str,
@@ -288,8 +317,7 @@ class ESMIF(TorchModel):
             Offset for the sequence IDs.
         """
 
-        struct = load_structure(pdb_path)
-        native_coords, native_seqs = extract_coords_from_complex(struct)
+        native_coords, native_seqs = load_native_coords_and_seqs(pdb_path)
         all_coords = _concatenate_coords(
             native_coords, target_chain_id, padding_length=padding_length
         )

@@ -2,7 +2,9 @@ import torch
 from transformers import AutoTokenizer, EsmForMaskedLM
 
 from models.basemodels import TorchModel
-from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET, ScoreDict
+from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from models.types import ScoreDict
+from models.utils import clean_gpu_cache
 
 
 class ESM2(TorchModel):
@@ -27,6 +29,7 @@ class ESM2(TorchModel):
 
         return model, tokenizer  # type: ignore
 
+    @clean_gpu_cache
     def score(
         self,
         seqs_list: list[str],
@@ -114,6 +117,10 @@ class ESM2(TorchModel):
                 print(f"perplexity: {perplexity[l].item()}")
                 print()
 
-        output_dict = {"entropy": entropy, "loss": loss, "perplexity": perplexity}
+        output_dict: ScoreDict = {
+            "entropy": entropy,
+            "loss": loss,
+            "perplexity": perplexity,
+        }
 
         return output_dict

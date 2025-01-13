@@ -20,8 +20,9 @@ from alphafold.data import (
 )
 from alphafold.data.tools import hhsearch, kalign
 from alphafold.model import config, data, model
-from Bio import SeqIO
 from Bio.PDB import PDBParser, is_aa
+from Bio.SeqIO.FastaIO import SimpleFastaParser
+from tqdm.auto import tqdm
 
 from models.basemodels import BaseModel
 from models.utils import Timer
@@ -848,9 +849,10 @@ class Af2Ig(BaseModel):
 
     def _preprocess(self, q_in: queue.Queue, fasta_path: str) -> None:
         """Preprocesses the sequences and adds them to the queue."""
-        for record in SeqIO.parse(fasta_path, "fasta"):
-            sequences = str(record.seq)
-            domain_name = record.id
+        with open(fasta_path, "r") as f:
+            records = list(SimpleFastaParser(f))
+
+        for domain_name, sequences in tqdm(records):
             logging.info("Sequence %s: %s", domain_name, sequences)
 
             # process features
@@ -920,17 +922,19 @@ class Af2Ig(BaseModel):
         """
 
         if asynchronous:
-            # Run the asyncio event loop
             self._run(fasta_path, output_dir, random_seed=random_seed)
         else:
-            for record in SeqIO.parse(fasta_path, "fasta"):
-                sequences = str(record.seq)
-                domain_name = record.id
+            with open(fasta_path, "r") as f:
+                records = list(SimpleFastaParser(f))
+
+            for domain_name, sequences in tqdm(records):
                 logging.info("Sequence %s: %s", domain_name, sequences)
 
                 # process features
                 try:
-                    feature_dict = self.data_pipeline.process(sequences, domain_name)
+                    feature_dict = self.data_pipeline.process(
+                        sequences, domain_name
+                    )
                     prediction_result = self.predict(
                         feature_dict, random_seed=random_seed
                     )

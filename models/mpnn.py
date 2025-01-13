@@ -1,4 +1,5 @@
 import random
+from functools import lru_cache
 from typing import Any, Literal, Sequence, TypedDict
 
 import numpy as np
@@ -6,9 +7,11 @@ import torch
 import torch.nn.functional as F
 
 from models.basemodels import TorchModel
-from models.globals import AA_DICT, ScoreDict
+from models.globals import AA_DICT
 from models.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
 from models.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
+from models.types import ScoreDict
+from models.utils import clean_gpu_cache
 
 
 class FeatureDict(TypedDict):
@@ -26,6 +29,7 @@ class ProteinMPNNBatch(ProteinMPNN):
     """The ProteinMPNN model class for batch sampling and scoring."""
 
     # TODO: Modify the sample method
+    def sample(self, *args, **kwargs) -> Any: ...
 
     @staticmethod
     def _symmetric_decoding_order(
@@ -303,15 +307,18 @@ class MPNN(TorchModel):
 
         return model
 
+    @staticmethod
+    @lru_cache(maxsize=128)
     def _parse_PDB(
-        self,
         pdb_path: str,
+        device: str | torch.device | None = None,
+        ligand_mpnn_use_side_chain_context: bool = False,
     ) -> dict[str, Any]:
         """Parse the PDB file and create the feature dictionary for the MPNN model."""
         protein_dict = parse_PDB(
             pdb_path,
-            device=self.device,
-            parse_all_atoms=self.ligand_mpnn_use_side_chain_context,
+            device=device,  # type: ignore
+            parse_all_atoms=ligand_mpnn_use_side_chain_context,
         )[0]
 
         return protein_dict
@@ -440,6 +447,7 @@ class MPNN(TorchModel):
         else:
             print("No ligand atoms parsed")
 
+    @clean_gpu_cache
     def score(
         self,
         pdb_path: str,
@@ -494,7 +502,11 @@ class MPNN(TorchModel):
         - The use_sequence option is only used to determine if sequence information is used in the sequence decoder.
         """
 
-        protein_dict = self._parse_PDB(pdb_path)
+        protein_dict = self._parse_PDB(
+            pdb_path,
+            device=self.device,
+            ligand_mpnn_use_side_chain_context=self.ligand_mpnn_use_side_chain_context,
+        )
 
         # create chain mask
         chain_letters = protein_dict["chain_letters"]
@@ -553,10 +565,15 @@ class MPNN(TorchModel):
         if verbose:
             self._print_verbose_message(protein_dict)
 
-        output_dict = {
+        output_dict: ScoreDict = {
             "entropy": entropy,
             "loss": loss,
             "perplexity": perplexity,
         }
 
         return output_dict
+
+    @clean_gpu_cache
+    def sample(self, *args, **kwargs) -> Any:
+        """Sample sequences from the MPNN model."""
+        raise NotImplementedError("Sampling is not supported for MPNN models yet.")

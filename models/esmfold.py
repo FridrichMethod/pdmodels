@@ -2,12 +2,13 @@ import argparse
 import os
 
 import torch
-from Bio import SeqIO
+from Bio.SeqIO.FastaIO import SimpleFastaParser
 from esm.esmfold.v1.misc import batch_encode_sequences, collate_dense_tensors
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, EsmForProteinFolding
 
 from models.basemodels import TorchModel
+from models.utils import Timer
 
 
 class EsmForProteinFoldingNew(EsmForProteinFolding):
@@ -204,9 +205,8 @@ class ESMFold(TorchModel):
         os.makedirs(output_dir, exist_ok=True)
 
         # Faster to parse the whole fasta file at once
-        records = [
-            (record.id, str(record.seq)) for record in SeqIO.parse(fasta_path, "fasta")
-        ]
+        with open(fasta_path) as f:
+            records = list(SimpleFastaParser(f))
 
         for record in tqdm(records):
             title, seqs = record
@@ -229,13 +229,15 @@ def cli(args: argparse.Namespace) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     esmfold = ESMFold(device=device)
-    esmfold.run(
-        args.fasta_path,
-        args.output_dir,
-        num_recycles=args.num_recycles,
-        residue_index_offset=args.residue_index_offset,
-        chain_linker=args.chain_linker,
-    )
+    with Timer() as timer:
+        esmfold.run(
+            args.fasta_path,
+            args.output_dir,
+            num_recycles=args.num_recycles,
+            residue_index_offset=args.residue_index_offset,
+            chain_linker=args.chain_linker,
+        )
+    print(f"Total time: {timer.elapsed}")
 
 
 def main() -> None:
