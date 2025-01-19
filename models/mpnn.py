@@ -10,8 +10,8 @@ from models.basemodels import TorchModel
 from models.globals import AA_DICT
 from models.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
 from models.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
-from models.types import ScoreDict
-from models.utils import clean_gpu_cache
+from models.types import Device, ScoreDict
+from models.utils import clean_gpu_cache, seqs_list_to_tensor
 
 
 class FeatureDict(TypedDict):
@@ -225,7 +225,7 @@ class MPNN(TorchModel):
         self,
         checkpoint_path: str,
         model_type: Literal["protein_mpnn", "ligand_mpnn"] = "protein_mpnn",
-        device: str | torch.device | None = None,
+        device: Device = None,
         ligand_mpnn_use_side_chain_context: bool = False,
         ligand_mpnn_use_atom_context: bool = True,
         ligand_mpnn_cutoff_for_score: float = 8.0,
@@ -311,7 +311,7 @@ class MPNN(TorchModel):
     @lru_cache(maxsize=128)
     def _parse_PDB(
         pdb_path: str,
-        device: str | torch.device | None = None,
+        device: Device = None,
         ligand_mpnn_use_side_chain_context: bool = False,
     ) -> dict[str, Any]:
         """Parse the PDB file and create the feature dictionary for the MPNN model."""
@@ -525,10 +525,7 @@ class MPNN(TorchModel):
             )
         else:
             feature_dict["batch_size"] = len(seqs_list)
-            feature_dict["S"] = torch.tensor(
-                [[AA_DICT[aa] for aa in seqs.replace(":", "")] for seqs in seqs_list],
-                device=self.device,
-            )
+            feature_dict["S"] = seqs_list_to_tensor(seqs_list, device=self.device)
 
         # sample random decoding order
         feature_dict["randn"] = torch.randn(

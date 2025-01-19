@@ -19,6 +19,7 @@ from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map, thread_map
 
 from models.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
+from models.types import Device
 
 
 class Timer:
@@ -83,14 +84,36 @@ def clean_gpu_cache(func):
     return wrapper
 
 
+def seqs_list_to_tensor(
+    seqs_list: Sequence[str], device: Device = None
+) -> torch.Tensor:
+    """Convert a list of sequences to a tensor of amino acid alphabet encoding."""
+    return torch.tensor(
+        [[AA_DICT[aa] for aa in seqs.replace(":", "")] for seqs in seqs_list],
+        device=device,
+    )
+
+
+def tensor_to_seqs_list(aa_tensor: torch.Tensor, chain_breaks: list[int]) -> list[str]:
+    """Convert a tensor of amino acid alphabet encoding to a list of sequences."""
+    chain_array_list = torch.split(aa_tensor, chain_breaks, dim=1)
+    seqs_list = [
+        ":".join("".join(AA_ALPHABET[aa] for aa in chain) for chain in chains)
+        for chains in zip(*chain_array_list)
+    ]
+    return seqs_list
+
+
 def count_mutations(
-    seqs_list: list[str], seqs_template: str, substitution_matrix: str = "identity"
+    seqs_list: str | list[str],
+    seqs_template: str,
+    substitution_matrix: str = "identity",
 ) -> np.ndarray:
     """Count the number of mutations between sequences and a reference sequence of the same length.
 
     Args
     ----
-    seqs_list: list[str]
+    seqs_list: str | list[str]
         List of sequences to compare.
     seqs_template: str
         Reference sequence.
@@ -146,11 +169,15 @@ def count_mutations(
 
     submat_norm = _normalize_submat(submat)
 
+    if isinstance(seqs_list, str):
+        seqs_list = [seqs_list]
     try:
         seqs_list_idx = np.array(
             [[AA_DICT[aa] for aa in seqs.replace(":", "")] for seqs in seqs_list]
         )
-        seqs_template_idx = np.array([AA_DICT[aa] for aa in seqs_template.replace(":", "")])
+        seqs_template_idx = np.array(
+            [AA_DICT[aa] for aa in seqs_template.replace(":", "")]
+        )
     except KeyError as e:
         raise KeyError(f"Invalid amino acid: {e}") from None
     except ValueError:

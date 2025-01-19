@@ -16,7 +16,7 @@ from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
 from models.basemodels import TorchModel
 from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
-from models.types import ScoreDict
+from models.types import Device, ScoreDict
 from models.utils import clean_gpu_cache
 
 
@@ -136,7 +136,7 @@ def load_native_coords_and_seqs(
 class ESMIF(TorchModel):
     """ESM-IF model for scoring and sampling redesigned sequences for a given complex structure."""
 
-    def __init__(self, device: str | torch.device | None = None):
+    def __init__(self, device: Device = None):
         """Initialize the ESM-IF model."""
         super().__init__(device=device)
 

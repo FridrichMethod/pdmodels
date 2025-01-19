@@ -1,5 +1,6 @@
 import argparse
 import os
+from typing import Sequence
 
 import torch
 from Bio.SeqIO.FastaIO import SimpleFastaParser
@@ -8,6 +9,7 @@ from tqdm.auto import tqdm
 from transformers import AutoTokenizer, EsmForProteinFolding
 
 from models.basemodels import TorchModel
+from models.types import Device
 from models.utils import Timer
 
 
@@ -64,9 +66,7 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
 class ESMFold(TorchModel):
     """ESMFold model for predicting the 3D structure of a protein from its sequence."""
 
-    def __init__(
-        self, device: str | torch.device | None = None, chunk_size: int | None = None
-    ) -> None:
+    def __init__(self, device: Device = None, chunk_size: int | None = None) -> None:
         """Initialize the ESMFold model."""
         super().__init__(device=device)
 
@@ -86,7 +86,7 @@ class ESMFold(TorchModel):
 
     def batch_predict(
         self,
-        seqs_list: list[str],
+        seqs_list: Sequence[str],
         num_recycles: int = 4,
         residue_index_offset: int = 512,
         chain_linker: str = "G" * 25,
@@ -95,7 +95,7 @@ class ESMFold(TorchModel):
 
         Args:
         -----
-        seqs_list: list[str]
+        seqs_list: Sequence[str]
             List of protein sequences.
         num_recycles: int
             Number of recycling steps.

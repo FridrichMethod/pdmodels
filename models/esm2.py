@@ -1,18 +1,18 @@
+from typing import Sequence
+
 import torch
 from transformers import AutoTokenizer, EsmForMaskedLM
 
 from models.basemodels import TorchModel
 from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
-from models.types import ScoreDict
+from models.types import Device, ScoreDict
 from models.utils import clean_gpu_cache
 
 
 class ESM2(TorchModel):
     """ESM2 model for scoring complex structures."""
 
-    def __init__(
-        self, model_name: str, device: str | torch.device | None = None
-    ) -> None:
+    def __init__(self, model_name: str, device: Device = None) -> None:
         """Initialize the ESM2 model."""
         super().__init__(device=device)
 
@@ -32,7 +32,7 @@ class ESM2(TorchModel):
     @clean_gpu_cache
     def score(
         self,
-        seqs_list: list[str],
+        seqs_list: Sequence[str],
         padding_length: int = 10,
         verbose: bool = False,
     ) -> ScoreDict:
@@ -42,7 +42,7 @@ class ESM2(TorchModel):
 
         Args
         ----
-        seqs_list: list[str]
+        seqs_list: Sequence[str]
             A list of sequences of complex to score towards the given complex structure.
             Chains should be separated by colons.
         padding_length: int

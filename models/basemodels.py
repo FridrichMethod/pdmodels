@@ -3,6 +3,8 @@ from typing import Any, Self
 
 import torch
 
+from models.types import Device
+
 
 class BaseModel(ABC):
     def __init__(self):
@@ -15,7 +17,7 @@ class BaseModel(ABC):
 
 class TorchModel(BaseModel):
 
-    def __init__(self, device: str | torch.device | None = None) -> None:
+    def __init__(self, device: Device = None) -> None:
         super().__init__()
         self.device = device
 
@@ -23,7 +25,7 @@ class TorchModel(BaseModel):
     def _load_model(self) -> Any:
         pass
 
-    def to(self, device: str | torch.device | None) -> Self:
+    def to(self, device: Device) -> Self:
         self.device = device
         self.model = self.model.to(device)
         return self
