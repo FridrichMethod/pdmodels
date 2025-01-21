@@ -179,7 +179,7 @@ def count_mutations(
             [AA_DICT[aa] for aa in seqs_template.replace(":", "")]
         )
     except KeyError as e:
-        raise KeyError(f"Invalid amino acid: {e}") from None
+        raise KeyError(f"Invalid amino acid: {e}") from e
     except ValueError:
         raise ValueError("Some sequences have different lengths.") from None
 

@@ -1,7 +1,8 @@
 import os
 import pickle
-import queue
-from typing import Callable
+import tempfile
+from collections import deque
+from typing import Callable, Self
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -33,16 +34,65 @@ class ReVor:
         self.seqs_wt = seq_wt
         self.kwargs = kwargs
 
-        self.aa_wt: torch.Tensor = seqs_list_to_tensor([self.seqs_wt]).squeeze(0)
-        self.chain_breaks: list[int] = [
-            len(seq_wt) for seq_wt in self.seqs_wt.split(":")
-        ]
-
         self.dag: nx.DiGraph = nx.DiGraph()
-        self.q: queue.Queue[str] = queue.Queue()
+        self.q: deque[str] = deque()
         self.it: int = 0
 
-    def _score(self, seqs_list: list[str], repeat: int = 1) -> torch.Tensor:
+        self._aa_wt: torch.Tensor | None = None
+        self._chain_breaks: list[int] | None = None
+
+    @property
+    def aa_wt(self) -> torch.Tensor:
+        """Wild-type amino acid sequence encoded as a tensor."""
+        if self._aa_wt is None:
+            self._aa_wt = seqs_list_to_tensor([self.seqs_wt]).squeeze(0)
+        return self._aa_wt
+
+    @property
+    def chain_breaks(self) -> list[int]:
+        """List of length of each chain in the wild-type sequence."""
+        if self._chain_breaks is None:
+            self._chain_breaks = [len(seq_wt) for seq_wt in self.seqs_wt.split(":")]
+        return self._chain_breaks
+
+    def _save_checkpoint(self, checkpoint_path: str) -> None:
+        """Save the checkpoint of the ReVor model."""
+        dir_name = os.path.dirname(checkpoint_path)
+        os.makedirs(dir_name, exist_ok=True)
+
+        print(f"Saving checkpoint to {checkpoint_path}")
+        checkpoint = {
+            "dag": self.dag,
+            "q": self.q,
+            "it": self.it,
+        }
+
+        # Atomic write the checkpoint file
+        try:
+            with tempfile.NamedTemporaryFile(dir=dir_name, delete=False) as temp_file:
+                temp_path = temp_file.name
+                pickle.dump(checkpoint, temp_file, pickle.HIGHEST_PROTOCOL)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_path, checkpoint_path)
+        except Exception as e:
+            os.remove(temp_path)
+            raise RuntimeError(
+                f"Failed to save checkpoint to {checkpoint_path}: {e}"
+            ) from e
+
+    def load(self, checkpoint_path: str) -> Self:
+        """Load the checkpoint of the ReVor model."""
+        with open(checkpoint_path, "rb") as f:
+            checkpoint = pickle.load(f)
+
+        self.dag = checkpoint["dag"]
+        self.q = checkpoint["q"]
+        self.it = checkpoint["it"]
+
+        return self
+
+    def _score(self, seqs_list: list[str], repeat: int) -> torch.Tensor:
         """Calculate the average loss for a batch of sequences."""
         seqs_num = len(seqs_list)
 
@@ -65,11 +115,11 @@ class ReVor:
     def _iterate(
         self,
         seqs_list: list[str],
-        cutoff: float = 0.1,
-        repeat: int = 1,
-        max_step: int = 1,
-        n_samples: int = 1,
-        temperature: float = 1.0,
+        cutoff: float,
+        repeat: int,
+        max_step: int,
+        n_samples: int,
+        temperature: float,
     ) -> None:
         """Iterate over the sequences and revert the mutations that increase the loss."""
 
@@ -124,7 +174,7 @@ class ReVor:
             if new_seqs == old_seqs:
                 continue
             if new_seqs not in self.dag:
-                self.q.put(new_seqs)
+                self.q.append(new_seqs)
                 self.dag.add_node(
                     new_seqs,
                     iteration=self.it,
@@ -139,20 +189,23 @@ class ReVor:
 
     def revert(
         self,
-        fasta_path: str,
+        input_path: str,
         cutoff: float = 0.1,
-        batch_size: int = 1,
-        repeat: int = 1,
-        max_step: int = 1,
-        n_samples: int = 1,
+        batch_size: int = 32,
+        repeat: int = 4,
+        max_step: int = 3,
+        n_samples: int = 6,
         temperature: float = 1.0,
+        checkpoint_path: str = "",
+        save_checkpoint_interval: int = 20,
     ) -> None:
         """Revert the mutations that increase the loss.
 
         Args:
         -----
-        fasta_path: str
-            Path to the FASTA file containing the mutated sequences.
+        input_path: str
+            Path to the FASTA file containing the mutated sequences,
+            or the checkpoint file of the ReVor model.
         cutoff: float
             Cutoff value for delta loss to revert the mutations.
         batch_size: int
@@ -165,47 +218,61 @@ class ReVor:
             Number of sequences to sample for reverting the mutations.
         temperature: float
             Temperature for sampling the mutations.
+        checkpoint_path: str
+            Path to save the checkpoint of the ReVor model.
+            If not provided, the checkpoint is not saved.
+        save_checkpoint_interval: int
+            Interval to save the checkpoint of the ReVor model in iterations.
 
         Notes:
         -----
         - The actual batch size is `batch_size * repeat`.
         """
 
-        with open(fasta_path) as f:
-            for title, seqs in SimpleFastaParser(f):
-                self.q.put(seqs)
-                self.dag.add_node(
-                    seqs,
-                    title=title,
-                    iteration=self.it,
-                    distance=count_mutations(seqs, self.seqs_wt).item(),
-                    role="start",
-                )
+        if input_path.endswith(".pkl"):
+            self.load(input_path)
+        elif input_path.endswith(".fasta"):
+            with open(input_path) as f:
+                for title, seqs in SimpleFastaParser(f):
+                    self.q.append(seqs)
+                    self.dag.add_node(
+                        seqs,
+                        title=title,
+                        iteration=self.it,
+                        distance=count_mutations(seqs, self.seqs_wt).item(),
+                        role="start",
+                    )
+        else:
+            raise ValueError(
+                "Input file must be either a FASTA file or a checkpoint file."
+            )
 
         seqs_list: list[str] = []
         while True:
             if len(seqs_list) < batch_size:
-                try:
-                    seqs = self.q.get_nowait()
-                except queue.Empty:
-                    if not seqs_list:
-                        break
-                else:
+                if self.q:
+                    seqs = self.q.popleft()
                     seqs_list.append(seqs)
                     continue
+                else:
+                    if not seqs_list:
+                        break
 
             print(f"Iteration {self.it}")
-            print(f"Number of sequences remaining: {self.q.qsize() + len(seqs_list)}")
+            print(f"Number of sequences remaining: {len(self.q) + len(seqs_list)}")
 
             self._iterate(
                 seqs_list,
-                cutoff=cutoff,
-                repeat=repeat,
-                max_step=max_step,
-                n_samples=n_samples,
-                temperature=temperature,
+                cutoff,
+                repeat,
+                max_step,
+                n_samples,
+                temperature,
             )
             seqs_list.clear()
+
+            if checkpoint_path and not self.it % save_checkpoint_interval:
+                self._save_checkpoint(checkpoint_path)
 
         for topology, nodes in enumerate(nx.topological_generations(self.dag)):
             for node in nodes:
@@ -222,7 +289,7 @@ class ReVor:
             if self.dag.in_degree(node) == 0 and self.dag.out_degree(node) > 0
         )
         assert all(
-            data["role"] == "intermediate"
+            data["role"] != "end"
             for node, data in self.dag.nodes(data=True)
             if self.dag.in_degree(node) > 0 and self.dag.out_degree(node) > 0
         )
