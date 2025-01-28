@@ -2,7 +2,7 @@ import os
 import pickle
 import tempfile
 from collections import deque
-from typing import Callable, Self
+from typing import Any, Callable, Self
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -177,6 +177,7 @@ class ReVor:
                 self.q.append(new_seqs)
                 self.dag.add_node(
                     new_seqs,
+                    title=None,
                     iteration=self.it,
                     distance=count_mutations(new_seqs, self.seqs_wt).item(),
                     role="intermediate",
@@ -294,7 +295,7 @@ class ReVor:
             if self.dag.in_degree(node) > 0 and self.dag.out_degree(node) > 0
         )
 
-    def _get_subdag(self, titles: list[str]) -> nx.DiGraph:
+    def get_subdag(self, titles: list[str]) -> nx.DiGraph:
         """Get the subgraph of the reverted sequences starting from the given title."""
         reachable_nodes = set()
         for title in titles:
@@ -302,7 +303,7 @@ class ReVor:
                 (
                     node
                     for node, data in self.dag.nodes(data=True)
-                    if data.get("title") == title
+                    if data["title"] == title
                 ),
                 None,
             )
@@ -338,9 +339,9 @@ class ReVor:
         if subdag_titles is None:
             subdag = self.dag
         elif isinstance(subdag_titles, str):
-            subdag = self._get_subdag([subdag_titles])
+            subdag = self.get_subdag([subdag_titles])
         else:
-            subdag = self._get_subdag(subdag_titles)
+            subdag = self.get_subdag(subdag_titles)
 
         plt.figure(figsize=figsize)
 
@@ -357,7 +358,12 @@ class ReVor:
             alpha=0.5,
         )
 
-        node_labels = nx.get_node_attributes(subdag, "title")
+        node_labels = {}
+        for node, data in subdag.nodes(data=True):
+            if data["role"] == "start":
+                node_labels[node] = data["title"]
+            elif data["role"] == "end":
+                node_labels[node] = f"{data['distance']} mutations"
         nx.draw_networkx_labels(
             subdag, pos, labels=node_labels, font_size=8, font_weight="bold"
         )
@@ -380,6 +386,14 @@ class ReVor:
         )
         plt.show()
         plt.close()
+
+    def get_results(self) -> dict[str, dict[str, Any]]:
+        """Get the results of the reverted sequences."""
+        return {
+            node: data
+            for node, data in self.dag.nodes(data=True)
+            if data["role"] == "end"
+        }
 
     def save(self, output_dir: str) -> None:
         """Save the reverted sequences and the graph."""
