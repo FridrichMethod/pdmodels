@@ -157,6 +157,7 @@ class ESMIF(TorchModel):
         target_seq_list: list[str] | None = None,
         target_chain_id: str = "A",
         padding_length: int = 10,
+        truncate: bool = False,
         verbose: bool = False,
     ) -> ScoreDict:
         """Score target sequences towards a given complex structure.
@@ -171,6 +172,8 @@ class ESMIF(TorchModel):
             The chain id of the target sequence.
         padding_length: int
             Padding length for chain separation.
+        truncate: bool
+            Whether to truncate the entropy and loss tensors to the length of the target sequence.
         verbose: bool
             Whether to print the results.
 
@@ -241,36 +244,49 @@ class ESMIF(TorchModel):
         with torch.no_grad():
             logits, _ = self.model(coords, padding_mask, confidence, prev_output_tokens)
         logits = logits.cpu().detach()
+
+        if truncate:
+            all_indices_array = all_indices_array[
+                :, : len(native_seqs[target_chain_id])
+            ]
+            target = torch.tensor(
+                [[AA_DICT[aa] for aa in target_seq] for target_seq in target_seq_list]
+            )
+        else:
+            target = torch.tensor(
+                [
+                    [AA_DICT[aa] for aa in "".join(target_seqs.values())]
+                    for target_seqs in target_seqs_list
+                ]
+            )  # (B, L)
+
         entropy = -(
             logits[:, aa_tokens]
             .transpose(1, 2)[np.arange(B)[:, None], all_indices_array]
             .log_softmax(dim=-1)
         )  # (B, L, 20)
 
-        target = torch.tensor(
-            [
-                [AA_DICT[aa] for aa in "".join(target_seqs.values())]
-                for target_seqs in target_seqs_list
-            ]
-        )  # (B, L)
         loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
         perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
 
         if verbose:
-            print(f"native_seqs: {native_seqs}")
-            for l, target_seqs in enumerate(target_seqs_list):
-                print()
-                print(f"target_seq: {target_seqs[target_chain_id]}")
-                print("loss:")
-                k = 0
-                for i, chain in enumerate(target_seqs.values()):
-                    loss_chunk = loss[l, k : k + len(chain)]
-                    k += len(chain)
-                    print(f"chain {CHAIN_ALPHABET[i]}")
-                    for j, (aa, loss_val) in enumerate(zip(chain, loss_chunk)):
-                        print(f"{aa}{j+1}: {loss_val.item()}")
-                print(f"perplexity: {perplexity[l].item()}")
-                print()
+            if truncate:
+                pass  # TODO: print the truncated results
+            else:
+                print(f"native_seqs: {native_seqs}")
+                for l, target_seqs in enumerate(target_seqs_list):
+                    print()
+                    print(f"target_seq: {target_seqs[target_chain_id]}")
+                    print("loss:")
+                    k = 0
+                    for i, chain in enumerate(target_seqs.values()):
+                        loss_chunk = loss[l, k : k + len(chain)]
+                        k += len(chain)
+                        print(f"chain {CHAIN_ALPHABET[i]}")
+                        for j, (aa, loss_val) in enumerate(zip(chain, loss_chunk)):
+                            print(f"{aa}{j+1}: {loss_val.item()}")
+                    print(f"perplexity: {perplexity[l].item()}")
+                    print()
 
         output_dict: ScoreDict = {
             "entropy": entropy,
