@@ -308,7 +308,7 @@ class MPNN(TorchModel):
         return model
 
     @staticmethod
-    @lru_cache(maxsize=128)
+    @lru_cache(maxsize=None)
     def _parse_PDB(
         pdb_path: str,
         device: Device = None,
@@ -452,6 +452,7 @@ class MPNN(TorchModel):
         self,
         pdb_path: str,
         seqs_list: Sequence[str] | None = None,
+        repeat: int = 1,
         chains_to_design: str = "",
         redesigned_residues: str = "",
         symmetry_residues: str = "",
@@ -468,6 +469,9 @@ class MPNN(TorchModel):
         seqs_list: Sequence[str]
             A list of sequences to score towards the complex structure.
             Chains are separated by colons.
+        repeat: int
+            The number of sequence replicates to average over.
+            MPNN uses random decoding order, so the results may vary.
         chains_to_design: str
             A comma-separated list of chain letters of the redesign chains.
         redesigned_residues: str
@@ -500,6 +504,7 @@ class MPNN(TorchModel):
         - If seqs_list is empty or not provided, the native sequence is used as the target.
         - All sequences in the seqs_list should have the same length of each chain as the native sequence.
         - The use_sequence option is only used to determine if sequence information is used in the sequence decoder.
+        - The actual batch size is `len(seqs_list) * repeat` if `repeat` is provided.
         """
 
         protein_dict = self._parse_PDB(
@@ -507,6 +512,9 @@ class MPNN(TorchModel):
             device=self.device,
             ligand_mpnn_use_side_chain_context=self.ligand_mpnn_use_side_chain_context,
         )
+
+        seqs_list_: list[str] = list(seqs_list) if seqs_list is not None else []
+        batch_seqs_list = seqs_list_ * repeat
 
         # create chain mask
         chain_letters = protein_dict["chain_letters"]
@@ -519,13 +527,13 @@ class MPNN(TorchModel):
         feature_dict = self._featurize(protein_dict)
 
         # remap R_idx and add batch dimension
-        if seqs_list is None or not seqs_list:
-            feature_dict["batch_size"] = (
-                1  # modify to a larger integer if averaging over duplicates is desired
-            )
+        if not batch_seqs_list:
+            seqs_num = 1
+            feature_dict["batch_size"] = repeat
         else:
-            feature_dict["batch_size"] = len(seqs_list)
-            feature_dict["S"] = seqs_list_to_tensor(seqs_list, device=self.device)
+            seqs_num = len(seqs_list_)
+            feature_dict["batch_size"] = len(batch_seqs_list)
+            feature_dict["S"] = seqs_list_to_tensor(batch_seqs_list, device=self.device)
 
         # sample random decoding order
         feature_dict["randn"] = torch.randn(
@@ -554,7 +562,11 @@ class MPNN(TorchModel):
             logits = score_dict["logits"]
         logits = logits.cpu().detach()
 
-        entropy = -(logits[:, :, :20].log_softmax(dim=-1))  # (B, L, 20)
+        entropy = (
+            -(logits[:, :, :20].log_softmax(dim=-1))
+            .view(repeat, seqs_num, -1, 20)
+            .mean(dim=0)
+        )  # (B, L, 20)
         target = feature_dict["S"].long().cpu()  # (B, L)
         loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
         perplexity = torch.exp(loss.mean(dim=-1))  # (B,)

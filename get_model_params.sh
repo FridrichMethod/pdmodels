@@ -3,7 +3,7 @@
 #make new directory for model parameters
 #e.g.   bash get_model_params.sh "./model_params"
 
-model_params="./model_params"
+model_params="./model_params/ligandmpnn"
 
 mkdir -p "${model_params}"
 
@@ -47,3 +47,20 @@ wget -q https://files.ipd.uw.edu/pub/ligandmpnn/solublempnn_v_48_030.pt -O "${mo
 
 #LigandMPNN for side-chain packing (multi-step denoising model)
 wget -q https://files.ipd.uw.edu/pub/ligandmpnn/ligandmpnn_sc_v_32_002_16.pt -O "${model_params}/ligandmpnn_sc_v_32_002_16.pt"
+
+# AlphaFold params
+if [[ $# -eq 0 ]]; then
+    echo "Error: download directory must be provided as an input argument."
+    exit 1
+fi
+
+ROOT_DIR="./model_params/alphafold/params"
+SOURCE_URL="https://storage.googleapis.com/alphafold/alphafold_params_2022-12-06.tar"
+BASENAME=$(basename "${SOURCE_URL}")
+
+mkdir --parents "${ROOT_DIR}"
+aria2c "${SOURCE_URL}" --dir="${ROOT_DIR}"
+tar --extract --verbose --file="${ROOT_DIR}/${BASENAME}" \
+    --directory="${ROOT_DIR}" --preserve-permissions
+rm "${ROOT_DIR}/${BASENAME}"
+rm "${ROOT_DIR}/LICENSE"

@@ -11,8 +11,7 @@ class BaseModel(ABC):
         self.model = None
 
     @abstractmethod
-    def _load_model(self) -> Any:
-        pass
+    def _load_model(self) -> Any: ...
 
 
 class TorchModel(BaseModel):
@@ -22,8 +21,7 @@ class TorchModel(BaseModel):
         self.device = device
 
     @abstractmethod
-    def _load_model(self) -> Any:
-        pass
+    def _load_model(self) -> Any: ...
 
     def to(self, device: Device) -> Self:
         self.device = device

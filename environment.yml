@@ -123,4 +123,4 @@ dependencies:
       - torch_spline_conv==1.2.2+pt25cu124
       - -f https://data.pyg.org/whl/torch-2.5.0+cu124.html
       - git+https://github.com/google-deepmind/alphafold.git
-      # - git+https://github.com/aqlaboratory/openfold.git@pl_upgrades
+      - git+https://github.com/aqlaboratory/openfold.git@pl_upgrades

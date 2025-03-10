@@ -163,6 +163,7 @@ cython_debug/
 
 # intermediate files
 *.pt
+*.tar.gz
 
 # intermediate folders
 model_params/

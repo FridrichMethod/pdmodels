@@ -68,6 +68,7 @@ class ReVor:
         }
 
         # Atomic write the checkpoint file
+        temp_path = None
         try:
             with tempfile.NamedTemporaryFile(dir=dir_name, delete=False) as temp_file:
                 temp_path = temp_file.name
@@ -76,7 +77,8 @@ class ReVor:
                 os.fsync(temp_file.fileno())
             os.replace(temp_path, checkpoint_path)
         except Exception as e:
-            os.remove(temp_path)
+            if temp_path is not None:
+                os.remove(temp_path)
             raise RuntimeError(
                 f"Failed to save checkpoint to {checkpoint_path}: {e}"
             ) from e
@@ -92,19 +94,14 @@ class ReVor:
 
         return self
 
-    def _score(self, seqs_list: list[str], repeat: int) -> torch.Tensor:
+    def _score(self, seqs_list: list[str]) -> torch.Tensor:
         """Calculate the average loss for a batch of sequences."""
         seqs_num = len(seqs_list)
 
-        batch_seqs_list = seqs_list * repeat
-        batch_output_dict = self.model.score(
-            self.pdb_path, batch_seqs_list, **self.kwargs
-        )
-        batch_entropy = batch_output_dict["entropy"]  # (B * R, L, 20)
-        batch_loss = batch_output_dict["loss"]  # (B * R, L)
+        output_dict = self.model.score(self.pdb_path, seqs_list, **self.kwargs)
+        entropy = output_dict["entropy"]  # (B, L, 20)
+        loss = output_dict["loss"]  # (B, L)
 
-        entropy = batch_entropy.view(repeat, seqs_num, -1, 20).mean(dim=0)  # (B, L, 20)
-        loss = batch_loss.view(repeat, seqs_num, -1).mean(dim=0)  # (B, L)
         target = self.aa_wt.repeat(seqs_num, 1)  # (B, L)
         loss_wt = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
 
@@ -116,7 +113,6 @@ class ReVor:
         self,
         seqs_list: list[str],
         cutoff: float,
-        repeat: int,
         max_step: int,
         n_samples: int,
         temperature: float,
@@ -129,7 +125,7 @@ class ReVor:
         mutation_mask = aa_tensor != self.aa_wt
 
         # Calculate the score for reverting the mutations
-        score = self._score(seqs_list, repeat)
+        score = self._score(seqs_list)
         score[~mutation_mask] = -np.inf
         revert_values, revert_indices = torch.topk(score, max_step)
         revert_mask = torch.zeros_like(aa_tensor, dtype=torch.bool).scatter(
@@ -193,7 +189,6 @@ class ReVor:
         input_path: str,
         cutoff: float = 0.1,
         batch_size: int = 32,
-        repeat: int = 4,
         max_step: int = 3,
         n_samples: int = 6,
         temperature: float = 1.0,
@@ -211,8 +206,6 @@ class ReVor:
             Cutoff value for delta loss to revert the mutations.
         batch_size: int
             Number of sequences to process in each batch.
-        repeat: int
-            Number of duplicates for each sequence in the batch to average the loss.
         max_step: int
             Maximum number of mutations to revert in each iteration.
         n_samples: int
@@ -227,7 +220,7 @@ class ReVor:
 
         Notes:
         -----
-        - The actual batch size is `batch_size * repeat`.
+        - The actual batch size is `batch_size * repeat` if `repeat` is in self.kwargs.
         """
 
         if input_path.endswith(".pkl"):
@@ -265,7 +258,6 @@ class ReVor:
             self._iterate(
                 seqs_list,
                 cutoff,
-                repeat,
                 max_step,
                 n_samples,
                 temperature,

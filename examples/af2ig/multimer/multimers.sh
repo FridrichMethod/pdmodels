@@ -5,10 +5,11 @@
 
 # JAX control
 # export XLA_PYTHON_CLIENT_MEM_FRACTION='4.0'
+# export JAX_PLATFORMS=cpu
 
 PYTHONPATH=$(pwd)/../../.. python -m models.af2ig \
     --model_name=model_1_multimer_v3 \
-    --data_dir=/mnt/d/alphafold \
+    --data_dir=../../../model_params/alphafold \
     --fasta_path=./multimers.fasta \
     --output_dir=./multimers \
     --random_seed=0 \

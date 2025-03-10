@@ -108,7 +108,7 @@ def _concatenate_seqs(
     return target_seqs_concatenated, target_aa_concatenated
 
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=None)
 def load_native_coords_and_seqs(
     pdb_path: str,
 ) -> tuple[dict[str, np.ndarray], dict[str, str]]:
