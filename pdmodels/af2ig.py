@@ -24,8 +24,8 @@ from Bio.PDB import PDBParser, is_aa
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from tqdm.auto import tqdm
 
-from models.basemodels import BaseModel
-from models.utils import Timer
+from pdmodels.basemodels import BaseModel
+from pdmodels.utils import Timer
 
 GeneralFeatureDict = MutableMapping[str, list[Any]]
 

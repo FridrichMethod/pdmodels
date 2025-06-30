@@ -14,10 +14,10 @@ from esm.inverse_folding.multichain_util import (
 )
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
-from models.basemodels import TorchModel
-from models.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
-from models.types import Device, ScoreDict
-from models.utils import clean_gpu_cache
+from pdmodels.basemodels import TorchModel
+from pdmodels.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from pdmodels.types import Device, ScoreDict
+from pdmodels.utils import clean_gpu_cache
 
 
 class CoordBatchConverterNew(CoordBatchConverter):

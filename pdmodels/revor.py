@@ -11,9 +11,9 @@ import torch
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from matplotlib.lines import Line2D
 
-from models.esmif import ESMIF
-from models.mpnn import MPNN
-from models.utils import count_mutations, seqs_list_to_tensor, tensor_to_seqs_list
+from pdmodels.esmif import ESMIF
+from pdmodels.mpnn import MPNN
+from pdmodels.utils import count_mutations, seqs_list_to_tensor, tensor_to_seqs_list
 
 
 class ReVor:

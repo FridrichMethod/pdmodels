@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from prody import writePDB
 
-from models.ligandmpnn.data_utils import (
+from pdmodels.ligandmpnn.data_utils import (
     alphabet,
     element_dict_rev,
     featurize,
@@ -21,7 +21,7 @@ from models.ligandmpnn.data_utils import (
     restype_str_to_int,
     write_full_PDB,
 )
-from models.ligandmpnn.model_utils import ProteinMPNN
+from pdmodels.ligandmpnn.model_utils import ProteinMPNN
 
 # from sc_utils import Packer, pack_side_chains
 

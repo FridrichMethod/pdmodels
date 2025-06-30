@@ -8,9 +8,9 @@ from esm.esmfold.v1.misc import batch_encode_sequences, collate_dense_tensors
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, EsmForProteinFolding
 
-from models.basemodels import TorchModel
-from models.types import Device
-from models.utils import Timer
+from pdmodels.basemodels import TorchModel
+from pdmodels.types import Device
+from pdmodels.utils import Timer
 
 
 class EsmForProteinFoldingNew(EsmForProteinFolding):

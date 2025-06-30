@@ -6,12 +6,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from models.basemodels import TorchModel
-from models.globals import AA_DICT
-from models.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
-from models.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
-from models.types import Device, ScoreDict
-from models.utils import clean_gpu_cache, seqs_list_to_tensor
+from pdmodels.basemodels import TorchModel
+from pdmodels.globals import AA_DICT
+from pdmodels.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
+from pdmodels.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
+from pdmodels.types import Device, ScoreDict
+from pdmodels.utils import clean_gpu_cache, seqs_list_to_tensor
 
 
 class FeatureDict(TypedDict):

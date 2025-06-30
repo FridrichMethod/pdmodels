@@ -1,7 +1,7 @@
 # Protein Design Models
 
 ```python
-models/
+pdmodels/
 │
 ├── __init__.py
 │

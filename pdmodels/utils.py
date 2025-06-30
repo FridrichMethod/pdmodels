@@ -18,8 +18,8 @@ from scipy.spatial import distance_matrix
 from tqdm.auto import tqdm
 from tqdm.contrib.concurrent import process_map, thread_map
 
-from models.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
-from models.types import Device
+from pdmodels.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
+from pdmodels.types import Device
 
 
 class Timer:

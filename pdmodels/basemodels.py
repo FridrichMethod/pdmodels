@@ -3,7 +3,7 @@ from typing import Any, Self
 
 import torch
 
-from models.types import Device
+from pdmodels.types import Device
 
 
 class BaseModel(ABC):
