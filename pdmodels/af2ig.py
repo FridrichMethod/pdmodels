@@ -24,7 +24,6 @@ from Bio.PDB import PDBParser, is_aa
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from tqdm.auto import tqdm
 
-from pdmodels.basemodels import BaseModel
 from pdmodels.utils import Timer
 
 GeneralFeatureDict = MutableMapping[str, list[Any]]
@@ -704,7 +703,7 @@ class DataPipelineMultimer:
         return feature_dict_multimer
 
 
-class Af2Ig(BaseModel):
+class Af2Ig:
     """AlphaFold2 initial guess model for monomer and multimer prediction."""
 
     def __init__(
@@ -715,8 +714,6 @@ class Af2Ig(BaseModel):
         data_pipeline: DataPipeline | DataPipelineMultimer,
     ) -> None:
         """Initialize the AlphaFold2 model."""
-
-        super().__init__()
 
         self.model_name = model_name
         self.is_multimer = is_multimer

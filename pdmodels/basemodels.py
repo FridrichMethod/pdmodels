@@ -6,18 +6,10 @@ import torch
 from pdmodels.types import Device
 
 
-class BaseModel(ABC):
-    def __init__(self):
-        self.model = None
-
-    @abstractmethod
-    def _load_model(self) -> Any: ...
-
-
-class TorchModel(BaseModel):
+class TorchModel(ABC):
 
     def __init__(self, device: Device = None) -> None:
-        super().__init__()
+        self.model = None
         self.device = device
 
     @abstractmethod
