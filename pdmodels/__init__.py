@@ -5,7 +5,8 @@ from pdmodels.esm2 import ESM2
 from pdmodels.esmfold import ESMFold
 from pdmodels.esmif import ESMIF
 from pdmodels.mpnn import MPNN
+from pdmodels.revor import ReVor
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-__all__ = ["Af2Ig", "ESMFold", "ESM2", "ESMIF", "MPNN"]
+__all__ = ["Af2Ig", "ESMFold", "ESM2", "ESMIF", "MPNN", "ReVor"]

@@ -4,8 +4,9 @@ import os
 import pickle
 import queue
 import shutil
+from collections.abc import Mapping, MutableMapping
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Mapping, MutableMapping
+from typing import Any
 
 import jax.numpy as jnp
 import numpy as np
@@ -19,7 +20,8 @@ from alphafold.data import (
     templates,
 )
 from alphafold.data.tools import hhsearch, kalign
-from alphafold.model import config, data, model
+from alphafold.model import config, data
+from alphafold.model.model import RunModel
 from Bio.PDB import PDBParser, is_aa
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from tqdm.auto import tqdm
@@ -722,7 +724,7 @@ class Af2Ig:
 
         self.model = self._load_model()
 
-    def _load_model(self) -> model.RunModel:
+    def _load_model(self) -> RunModel:
         """Loads the user-specified AlphaFold2 model."""
         model_config = config.model_config(self.model_name)
         if self.is_multimer:
@@ -733,7 +735,7 @@ class Af2Ig:
             model_name=self.model_name, data_dir=self.data_dir
         )
 
-        return model.RunModel(model_config, model_params)
+        return RunModel(model_config, model_params)
 
     def predict(
         self,
@@ -929,9 +931,7 @@ class Af2Ig:
 
                 # process features
                 try:
-                    feature_dict = self.data_pipeline.process(
-                        sequences, domain_name
-                    )
+                    feature_dict = self.data_pipeline.process(sequences, domain_name)
                     prediction_result = self.predict(
                         feature_dict, random_seed=random_seed
                     )

@@ -1,14 +1,13 @@
 import argparse
 import os
-from typing import Sequence
 
 import torch
+import torch.nn as nn
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from esm.esmfold.v1.misc import batch_encode_sequences, collate_dense_tensors
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, EsmForProteinFolding
 
-from pdmodels.basemodels import TorchModel
 from pdmodels.types import Device
 from pdmodels.utils import Timer
 
@@ -25,7 +24,7 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
         num_recycles: int | None = None,
         residue_index_offset: int | None = 512,
         chain_linker: str | None = "G" * 25,
-    ):
+    ) -> dict[str, torch.Tensor]:
         """Rewrite the infer method as the original ESMFold model."""
         if isinstance(sequences, str):
             sequences = [sequences]
@@ -43,7 +42,7 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
             lambda x: x.to(self.device), (aatype, mask, residx, linker_mask)
         )
 
-        output = super().forward(
+        output = self.forward(
             aatype,
             attention_mask=mask,
             position_ids=residx,
@@ -63,30 +62,44 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
         return output
 
 
-class ESMFold(TorchModel):
+class ESMFold(nn.Module):
     """ESMFold model for predicting the 3D structure of a protein from its sequence."""
 
     def __init__(self, device: Device = None, chunk_size: int | None = None) -> None:
         """Initialize the ESMFold model."""
-        super().__init__(device=device)
+        super().__init__()
 
+        self.model_name = "facebook/esmfold_v1"
+        self._device = device
         self.chunk_size = chunk_size
 
-        self.model, self.tokenizer = self._load_model()
+        self.model = self._load_model()
+        self.tokenizer = self._load_tokenizer()
 
-    def _load_model(self) -> tuple[EsmForProteinFoldingNew, AutoTokenizer]:
-        """Load the ESMFold model and tokenizer from the transformers library."""
-        model = EsmForProteinFoldingNew.from_pretrained("facebook/esmfold_v1")
-        model = model.to(self.device)  # type: ignore
+    def _load_model(self) -> EsmForProteinFoldingNew:
+        """Load the ESMFold model from the transformers library."""
+        model = EsmForProteinFoldingNew.from_pretrained(self.model_name)
+        model = model.to(self._device)  # type: ignore
         model = model.eval()
         model.trunk.set_chunk_size(self.chunk_size)
-        tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
 
-        return model, tokenizer  # type: ignore
+        return model
 
+    def _load_tokenizer(self) -> AutoTokenizer:
+        """Load the tokenizer for the ESMFold model."""
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+
+        return tokenizer
+
+    @property
+    def device(self) -> Device:
+        """Return the device on which the model is loaded."""
+        return next(self.model.parameters()).device
+
+    @torch.no_grad()
     def batch_predict(
         self,
-        seqs_list: Sequence[str],
+        seqs_list: list[str],
         num_recycles: int = 4,
         residue_index_offset: int = 512,
         chain_linker: str = "G" * 25,
@@ -95,7 +108,7 @@ class ESMFold(TorchModel):
 
         Args:
         -----
-        seqs_list: Sequence[str]
+        seqs_list: list[str]
             List of protein sequences.
         num_recycles: int
             Number of recycling steps.
@@ -110,13 +123,12 @@ class ESMFold(TorchModel):
             Dictionary containing the predicted 3D structure of the protein.
         """
 
-        with torch.no_grad():
-            output = self.model.infer(
-                seqs_list,
-                num_recycles=num_recycles,
-                residue_index_offset=residue_index_offset,
-                chain_linker=chain_linker,
-            )
+        output = self.model.infer(
+            seqs_list,
+            num_recycles=num_recycles,
+            residue_index_offset=residue_index_offset,
+            chain_linker=chain_linker,
+        )
 
         return output
 

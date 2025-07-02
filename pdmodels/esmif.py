@@ -1,10 +1,11 @@
 import os
+from collections.abc import Sequence
 from functools import lru_cache
-from typing import Sequence
 
 import esm
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from esm.data import Alphabet
 from esm.inverse_folding.gvp_transformer import GVPTransformerModel
@@ -14,7 +15,6 @@ from esm.inverse_folding.multichain_util import (
 )
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
-from pdmodels.basemodels import TorchModel
 from pdmodels.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 from pdmodels.types import Device, ScoreDict
 from pdmodels.utils import clean_gpu_cache
@@ -133,24 +133,32 @@ def load_native_coords_and_seqs(
     return native_coords, native_seqs
 
 
-class ESMIF(TorchModel):
+class ESMIF(nn.Module):
     """ESM-IF model for scoring and sampling redesigned sequences for a given complex structure."""
 
     def __init__(self, device: Device = None):
         """Initialize the ESM-IF model."""
-        super().__init__(device=device)
+        super().__init__()
 
-        self.model, self.alphabet = self._load_model()
+        self._device = device
 
-    def _load_model(self) -> tuple[GVPTransformerModel, Alphabet]:
+        self.model, self.alphabet = self._load_model_and_alphabet()
+
+    def _load_model_and_alphabet(self) -> tuple[GVPTransformerModel, Alphabet]:
         """Load the ESM-IF model and the corresponding alphabet."""
         model, alphabet = esm.pretrained.esm_if1_gvp4_t16_142M_UR50()
-        model = model.to(self.device)
+        model = model.to(self._device)
         model = model.eval()
 
         return model, alphabet  # type: ignore
 
+    @property
+    def device(self) -> Device:
+        """Return the device on which the model is loaded."""
+        return next(self.model.parameters()).device
+
     @clean_gpu_cache
+    @torch.no_grad()
     def score(
         self,
         pdb_path: str,
@@ -241,9 +249,9 @@ class ESMIF(TorchModel):
         prev_output_tokens = tokens[:, :-1]
         B, L = prev_output_tokens.shape
 
-        with torch.no_grad():
-            logits, _ = self.model(coords, padding_mask, confidence, prev_output_tokens)
-        logits = logits.cpu().detach()
+        logits = self.model(coords, padding_mask, confidence, prev_output_tokens)[
+            0
+        ].cpu()
 
         if truncate:
             all_indices_array = all_indices_array[
@@ -297,6 +305,7 @@ class ESMIF(TorchModel):
         return output_dict
 
     @clean_gpu_cache
+    @torch.no_grad()
     def sample(
         self,
         pdb_path: str,
@@ -381,29 +390,26 @@ class ESMIF(TorchModel):
         # Save incremental states for faster sampling
         incremental_state = {}
 
-        with torch.no_grad():
-            # Run encoder only once
-            encoder_out = self.model.encoder(batch_coords, padding_mask, confidence)
+        # Run encoder only once
+        encoder_out = self.model.encoder(batch_coords, padding_mask, confidence)
 
-            # Autoregressively decode the sequence one token at a time
-            for j in range(1, l + 1):
-                logits, _ = self.model.decoder(
-                    sampled_tokens[:, :j],
-                    encoder_out,
-                    incremental_state=incremental_state,  # incremental decoding
-                )
-                if sampled_tokens[0, j] == mask_idx:
-                    assert torch.all(sampled_tokens[:, j] == mask_idx)
+        # Autoregressively decode the sequence one token at a time
+        for j in range(1, l + 1):
+            logits = self.model.decoder(
+                sampled_tokens[:, :j],
+                encoder_out,
+                incremental_state=incremental_state,  # incremental decoding
+            )[0]
+            if sampled_tokens[0, j] == mask_idx:
+                assert torch.all(sampled_tokens[:, j] == mask_idx)
 
-                    logits[:, removed_aa_tokens] = -torch.inf
-                    logits = logits.transpose(1, 2) / temperature  # (B, 1, V)
-                    probs = logits.softmax(dim=-1)[:, -1]  # (B, V)
+                logits[:, removed_aa_tokens] = -torch.inf
+                logits = logits.transpose(1, 2) / temperature  # (B, 1, V)
+                probs = logits.softmax(dim=-1)[:, -1]  # (B, V)
 
-                    sampled_tokens[:, j] = torch.multinomial(probs, 1).squeeze()  # (B,)
+                sampled_tokens[:, j] = torch.multinomial(probs, 1).squeeze()  # (B,)
 
-        sampled_target_seq_tokens = (
-            sampled_tokens[:, 1 : l + 1].cpu().detach()
-        )  # (B, l)
+        sampled_target_seq_tokens = sampled_tokens[:, 1 : l + 1].cpu()  # (B, l)
 
         name = os.path.splitext(os.path.basename(pdb_path))[0]
 

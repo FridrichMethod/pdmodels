@@ -1,10 +1,9 @@
-import gc
 import os
 import pickle
-import re
 import time
+from collections.abc import Callable, Sequence
 from functools import wraps
-from typing import Literal, Sequence
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -15,8 +14,6 @@ from Bio.Align import substitution_matrices
 from Bio.PDB import PDBParser, is_aa
 from pymol import cmd
 from scipy.spatial import distance_matrix
-from tqdm.auto import tqdm
-from tqdm.contrib.concurrent import process_map, thread_map
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
 from pdmodels.types import Device
@@ -64,7 +61,7 @@ class PyMOLSession:
         cmd.reinitialize()  # Clean up the PyMOL session
 
 
-def clean_gpu_cache(func):
+def clean_gpu_cache(func: Callable) -> Callable:
     """Decorator to clean GPU memory cache after the decorated function is executed."""
 
     counter = 0

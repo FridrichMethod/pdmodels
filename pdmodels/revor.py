@@ -2,34 +2,42 @@ import os
 import pickle
 import tempfile
 from collections import deque
-from typing import Any, Callable, Self
+from collections.abc import Callable
+from typing import Any, Self
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import torch
+import torch.nn as nn
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from matplotlib.lines import Line2D
 
 from pdmodels.esmif import ESMIF
 from pdmodels.mpnn import MPNN
+from pdmodels.types import Device
 from pdmodels.utils import count_mutations, seqs_list_to_tensor, tensor_to_seqs_list
 
+InverseFoldingModel = MPNN | ESMIF
 
-class ReVor:
+NODE_COLORS: dict[str, str] = {
+    "start": "green",
+    "intermediate": "skyblue",
+    "end": "red",
+}
+
+
+class ReVor(nn.Module):
     """Reversed evolution for backward Monte Carlo sampling of largely mutated sequences."""
 
-    _NODE_COLORS: dict[str, str] = {
-        "start": "green",
-        "intermediate": "skyblue",
-        "end": "red",
-    }
-
     def __init__(
-        self, model: MPNN | ESMIF, pdb_path: str, seq_wt: str, **kwargs
+        self, model: InverseFoldingModel, pdb_path: str, seq_wt: str, **kwargs
     ) -> None:
         """Initialize the ReVor model."""
+        super().__init__()
+
         self.model = model
+        self._device = model.device
         self.pdb_path = pdb_path
         self.seqs_wt = seq_wt
         self.kwargs = kwargs
@@ -38,22 +46,13 @@ class ReVor:
         self.q: deque[str] = deque()
         self.it: int = 0
 
-        self._aa_wt: torch.Tensor | None = None
-        self._chain_breaks: list[int] | None = None
+        self.aa_wt = seqs_list_to_tensor([self.seqs_wt]).squeeze(0)  # TODO: device
+        self.chain_breaks = [len(seq_wt) for seq_wt in self.seqs_wt.split(":")]
 
     @property
-    def aa_wt(self) -> torch.Tensor:
-        """Wild-type amino acid sequence encoded as a tensor."""
-        if self._aa_wt is None:
-            self._aa_wt = seqs_list_to_tensor([self.seqs_wt]).squeeze(0)
-        return self._aa_wt
-
-    @property
-    def chain_breaks(self) -> list[int]:
-        """List of length of each chain in the wild-type sequence."""
-        if self._chain_breaks is None:
-            self._chain_breaks = [len(seq_wt) for seq_wt in self.seqs_wt.split(":")]
-        return self._chain_breaks
+    def device(self) -> Device:
+        """Return the device on which the model is loaded."""
+        return next(self.model.parameters()).device
 
     def _save_checkpoint(self, checkpoint_path: str) -> None:
         """Save the checkpoint of the ReVor model."""
@@ -338,9 +337,7 @@ class ReVor:
         plt.figure(figsize=figsize)
 
         pos = layout(subdag, **kwargs)
-        node_color = [
-            self._NODE_COLORS[data["role"]] for _, data in subdag.nodes(data=True)
-        ]
+        node_color = [NODE_COLORS[data["role"]] for _, data in subdag.nodes(data=True)]
         nx.draw(
             subdag,
             pos,
@@ -373,7 +370,7 @@ class ReVor:
                     markerfacecolor=color,
                     markersize=10,
                 )
-                for role, color in self._NODE_COLORS.items()
+                for role, color in NODE_COLORS.items()
             ]
         )
         plt.show()
@@ -401,4 +398,5 @@ class ReVor:
 
         output_graph_path = os.path.join(output_dir, "graph.pkl")
         with open(output_graph_path, "wb") as f:
+            pickle.dump(self.dag, f, pickle.HIGHEST_PROTOCOL)
             pickle.dump(self.dag, f, pickle.HIGHEST_PROTOCOL)

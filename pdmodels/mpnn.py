@@ -1,20 +1,20 @@
 import random
+from collections.abc import Sequence
 from functools import lru_cache
-from typing import Any, Literal, Sequence, TypedDict
+from typing import Any, Literal, TypedDict
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
-from pdmodels.basemodels import TorchModel
-from pdmodels.globals import AA_DICT
 from pdmodels.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
 from pdmodels.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
 from pdmodels.types import Device, ScoreDict
 from pdmodels.utils import clean_gpu_cache, seqs_list_to_tensor
 
 
-class FeatureDict(TypedDict):
+class MPNNFeatureDict(TypedDict):
     """Type hint for the feature dictionary used in the MPNN models."""
 
     S: torch.Tensor
@@ -29,7 +29,7 @@ class ProteinMPNNBatch(ProteinMPNN):
     """The ProteinMPNN model class for batch sampling and scoring."""
 
     # TODO: Modify the sample method
-    def sample(self, *args, **kwargs) -> Any: ...
+    def sample(self, *args, **kwargs) -> dict[str, torch.Tensor]: ...  # type: ignore
 
     @staticmethod
     def _symmetric_decoding_order(
@@ -56,7 +56,9 @@ class ProteinMPNNBatch(ProteinMPNN):
 
         return decoding_order
 
-    def _process_features(self, feature_dict: FeatureDict) -> dict[str, torch.Tensor]:
+    def _process_features(
+        self, feature_dict: MPNNFeatureDict
+    ) -> dict[str, torch.Tensor]:
         """Prepare tensors for the encoder and decoder."""
         B_decoder = feature_dict["batch_size"]
         S_true = feature_dict["S"]  # (B, L)
@@ -130,7 +132,7 @@ class ProteinMPNNBatch(ProteinMPNN):
 
         return logits
 
-    def forward(self, feature_dict: FeatureDict) -> dict[str, torch.Tensor]:
+    def forward(self, feature_dict: MPNNFeatureDict) -> dict[str, torch.Tensor]:
         """The forward method for ProteinMPNNBatch class.
 
         Used as the score method in the ProteinMPNN class.
@@ -160,7 +162,7 @@ class ProteinMPNNBatch(ProteinMPNN):
         }
 
     def single_aa_score(
-        self, feature_dict: FeatureDict, use_sequence: bool
+        self, feature_dict: MPNNFeatureDict, use_sequence: bool
     ) -> dict[str, torch.Tensor]:
         """Rewrite the score and single_aa_score method of ProteinMPNN class to batch version.
 
@@ -218,7 +220,7 @@ class ProteinMPNNBatch(ProteinMPNN):
         }
 
 
-class MPNN(TorchModel):
+class MPNN(nn.Module):
     """The MPNN model interface for batch sampling and scoring."""
 
     def __init__(
@@ -256,9 +258,11 @@ class MPNN(TorchModel):
             in the score method will have no effect
         """
 
-        super().__init__(device=device)
+        super().__init__()
 
-        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+        self._device = device
+
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)  # type: ignore
         self.checkpoint = checkpoint
 
         if model_type == "ligand_mpnn":
@@ -295,17 +299,22 @@ class MPNN(TorchModel):
             num_encoder_layers=3,
             num_decoder_layers=3,
             k_neighbors=self.k_neighbors,
-            device=self.device,
+            device=self._device,
             atom_context_num=self.atom_context_num,
             model_type=self.model_type,
             ligand_mpnn_use_side_chain_context=self.ligand_mpnn_use_side_chain_context,
         )
 
         model.load_state_dict(self.checkpoint["model_state_dict"])
-        model.to(self.device)
+        model.to(self._device)
         model.eval()
 
         return model
+
+    @property
+    def device(self) -> Device:
+        """Return the device on which the model is loaded."""
+        return next(self.model.parameters()).device
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -375,10 +384,7 @@ class MPNN(TorchModel):
         else:
             return torch.ones(len(R_idx), device=self.device)
 
-    def _featurize(
-        self,
-        protein_dict: dict[str, Any],
-    ) -> FeatureDict:
+    def _featurize(self, protein_dict: dict[str, Any]) -> MPNNFeatureDict:
         """Featurize the protein structure and sequences for the MPNN model."""
 
         feature_dict = featurize(
@@ -389,7 +395,7 @@ class MPNN(TorchModel):
             model_type=self.model_type,
         )
 
-        return feature_dict
+        return feature_dict  # type: ignore
 
     def _parse_symmetry_residues(
         self, symmetry_residues: str, res_to_idx: dict[str, int]
@@ -448,6 +454,7 @@ class MPNN(TorchModel):
             print("No ligand atoms parsed")
 
     @clean_gpu_cache
+    @torch.no_grad()
     def score(
         self,
         pdb_path: str,
@@ -554,13 +561,11 @@ class MPNN(TorchModel):
         )
         feature_dict["symmetry_residues"] = symmetry_list_of_lists
 
-        with torch.no_grad():
-            if autoregressive_score and use_sequence:
-                score_dict = self.model(feature_dict)
-            else:
-                score_dict = self.model.single_aa_score(feature_dict, use_sequence)
-            logits = score_dict["logits"]
-        logits = logits.cpu().detach()
+        if autoregressive_score and use_sequence:
+            score_dict = self.model(feature_dict)
+        else:
+            score_dict = self.model.single_aa_score(feature_dict, use_sequence)
+        logits = score_dict["logits"].cpu()
 
         entropy = (
             -(logits[:, :, :20].log_softmax(dim=-1))
@@ -583,6 +588,7 @@ class MPNN(TorchModel):
         return output_dict
 
     @clean_gpu_cache
-    def sample(self, *args, **kwargs) -> Any:
+    @torch.no_grad()
+    def sample(self, *args, **kwargs) -> None:
         """Sample sequences from the MPNN model."""
         raise NotImplementedError("Sampling is not supported for MPNN models yet.")

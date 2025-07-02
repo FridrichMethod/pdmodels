@@ -1,35 +1,48 @@
-from typing import Sequence
+from collections.abc import Sequence
 
 import torch
+import torch.nn as nn
 from transformers import AutoTokenizer, EsmForMaskedLM
 
-from pdmodels.basemodels import TorchModel
 from pdmodels.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 from pdmodels.types import Device, ScoreDict
 from pdmodels.utils import clean_gpu_cache
 
 
-class ESM2(TorchModel):
+class ESM2(nn.Module):
     """ESM2 model for scoring complex structures."""
 
     def __init__(self, model_name: str, device: Device = None) -> None:
         """Initialize the ESM2 model."""
-        super().__init__(device=device)
+        super().__init__()
 
         self.model_name = model_name
+        self._device = device
 
-        self.model, self.tokenizer = self._load_model()
+        self.model = self._load_model()
+        self.tokenizer = self._load_tokenizer()
 
-    def _load_model(self) -> tuple[EsmForMaskedLM, AutoTokenizer]:
-        """Load the ESM2 model and tokenizer from the transformers library."""
+    def _load_model(self) -> EsmForMaskedLM:
+        """Load the ESM2 model from the transformers library."""
         model = EsmForMaskedLM.from_pretrained(self.model_name)
-        model = model.to(self.device)  # type: ignore
+        model = model.to(self._device)  # type: ignore
         model = model.eval()
+
+        return model
+
+    def _load_tokenizer(self) -> AutoTokenizer:
+        """Load the tokenizer for the ESM2 model."""
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
-        return model, tokenizer  # type: ignore
+        return tokenizer
+
+    @property
+    def device(self) -> Device:
+        """Return the device on which the model is loaded."""
+        return next(self.model.parameters()).device
 
     @clean_gpu_cache
+    @torch.no_grad()
     def score(
         self,
         seqs_list: Sequence[str],
@@ -90,9 +103,7 @@ class ESM2(TorchModel):
         masked_inputs[all_indices] = self.tokenizer.mask_token_id
         masked_inputs = masked_inputs.to(self.device)
 
-        with torch.no_grad():
-            logits = self.model(masked_inputs).logits
-        logits = logits.cpu().detach()  # (B * L, L', C)
+        logits = self.model(masked_inputs).logits.cpu()  # (B * L, L', C)
         entropy = -(
             logits[all_indices][:, aa_tokens].view(-1, seq_len, 20).log_softmax(dim=-1)
         )  # (B, L, 20)
