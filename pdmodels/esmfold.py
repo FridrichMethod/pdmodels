@@ -239,6 +239,7 @@ class ESMFold(nn.Module):
 
 
 def cli(args: argparse.Namespace) -> None:
+    """Command line interface for ESMFold."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     esmfold = ESMFold(device=device)
@@ -253,8 +254,9 @@ def cli(args: argparse.Namespace) -> None:
     print(f"Total time: {timer.elapsed}")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
+def setup_parser(parser: argparse.ArgumentParser) -> None:
+    """Sets up the command line argument parser for ESMFold."""
+
     parser.add_argument(
         "fasta_path",
         type=str,
@@ -283,6 +285,11 @@ def main() -> None:
         default="G" * 25,
         help="A string of Gs representing the linker between the two chains.",
     )
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    setup_parser(parser)
     args = parser.parse_args()
 
     cli(args)

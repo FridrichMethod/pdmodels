@@ -984,8 +984,8 @@ def cli(args: argparse.Namespace) -> None:
     logging.info("Total time: %s", timer.elapsed)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
+def setup_parser(parser: argparse.ArgumentParser) -> None:
+    """Sets up the command line argument parser for AlphaFold2 initial guess."""
 
     # General arguments
     parser.add_argument("--model_name", type=str, required=True)
@@ -1006,6 +1006,10 @@ def main() -> None:
     parser.add_argument("--template_dir_name", type=str, default="")
     parser.add_argument("--pairing_msa_dir_name", type=str, default="")
 
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    setup_parser(parser)
     args = parser.parse_args()
 
     cli(args)
