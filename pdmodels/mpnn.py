@@ -380,7 +380,8 @@ class MPNN(nn.Module):
             return torch.tensor(
                 chain_mask,
                 device=self.device,
-            ).float()
+                dtype=torch.float32,
+            )
         else:
             return torch.ones(len(R_idx), device=self.device)
 

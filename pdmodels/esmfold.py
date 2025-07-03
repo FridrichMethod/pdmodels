@@ -38,8 +38,9 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
         elif not isinstance(residx, torch.Tensor):
             residx = collate_dense_tensors(residx)
 
+        device = next(self.parameters()).device
         aatype, mask, residx, linker_mask = map(
-            lambda x: x.to(self.device), (aatype, mask, residx, linker_mask)
+            lambda x: x.to(device), (aatype, mask, residx, linker_mask)
         )
 
         output = self.forward(
