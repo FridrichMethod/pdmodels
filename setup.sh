@@ -12,7 +12,7 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION="4.0"
 export XLA_PYTHON_CLIENT_ALLOCATOR="platform"
 export TF_FORCE_GPU_ALLOW_GROWTH="true"
 
-# Set up conda environment variables
+# Set up conda environment variables for OpenFold
 export LIBRARY_PATH=$CONDA_PREFIX/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
@@ -73,3 +73,6 @@ uv pip install py3Dmol
 uv pip install biotite
 uv pip install mdtraj
 uv pip install modelcif
+
+# Install the pdmodels package
+pip install -e .

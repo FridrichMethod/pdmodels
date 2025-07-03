@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdmodels"
+authors = [{ name = "Zhaoyang Li", email = "zhaoyangli@stanford.edu" }]
+license = { file = "LICENSE" }
+dynamic = ["version"]
+description = "Protein Design Models CLI and library"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [] # All dependencies are handled by the `setup.sh` script
+
+[project.scripts]
+pdmodels = "pdmodels.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "pre-commit"]
+
+[tool.setuptools.dynamic]
+version = { attr = "pdmodels.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pdmodels", "pdmodels.*"]
