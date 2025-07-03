@@ -1,1 +1,0 @@
-"""LigandMPNN model original implementation."""
