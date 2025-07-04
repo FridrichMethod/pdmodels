@@ -2,7 +2,7 @@
 
 # export JAX_PLATFORMS=cpu
 
-ROOT_DIR=.
+ROOT_DIR=$(git rev-parse --show-toplevel)
 
 python -m pdmodels af2ig \
     --model_name=model_1_multimer_v3 \
