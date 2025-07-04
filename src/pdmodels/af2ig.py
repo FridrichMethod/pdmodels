@@ -985,7 +985,7 @@ def cli(args: argparse.Namespace) -> None:
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> None:
-    """Sets up the command line argument parser for AlphaFold2 initial guess."""
+    """Set up the command line argument parser for AlphaFold2 initial guess."""
 
     # General arguments
     parser.add_argument("--model_name", type=str, required=True)

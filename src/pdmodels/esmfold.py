@@ -255,7 +255,7 @@ def cli(args: argparse.Namespace) -> None:
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> None:
-    """Sets up the command line argument parser for ESMFold."""
+    """Set up the command line argument parser for ESMFold."""
 
     parser.add_argument(
         "fasta_path",

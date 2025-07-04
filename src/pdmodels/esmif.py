@@ -17,7 +17,7 @@ from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
 from pdmodels.types import Device, ScoreDict
-from pdmodels.utils import clean_gpu_cache
+from pdmodels.utils import clean_gpu_cache, seqs_list_to_tensor
 
 
 class CoordBatchConverterNew(CoordBatchConverter):
@@ -162,7 +162,7 @@ class ESMIF(nn.Module):
     def score(
         self,
         pdb_path: str,
-        target_seq_list: list[str] | None = None,
+        target_seq_list: Sequence[str] | None = None,
         target_chain_id: str = "A",
         padding_length: int = 10,
         truncate: bool = False,
@@ -174,7 +174,7 @@ class ESMIF(nn.Module):
         ----
         pdb_path: str
             The path to the PDB file.
-        target_seq_list: list[str] | None
+        target_seq_list: Sequence[str] | None
             A list of sequences of the same single chain to score towards the complex structure.
         target_chain_id: str
             The chain id of the target sequence.
@@ -257,9 +257,7 @@ class ESMIF(nn.Module):
             all_indices_array = all_indices_array[
                 :, : len(native_seqs[target_chain_id])
             ]
-            target = torch.tensor(
-                [[AA_DICT[aa] for aa in target_seq] for target_seq in target_seq_list]
-            )
+            target = seqs_list_to_tensor(target_seq_list)
         else:
             target = torch.tensor(
                 [
