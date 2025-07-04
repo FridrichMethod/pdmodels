@@ -1,3 +1,4 @@
+import argparse
 import random
 from collections.abc import Sequence
 from functools import lru_cache
@@ -10,6 +11,7 @@ import torch.nn.functional as F
 
 from pdmodels.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
 from pdmodels.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
+from pdmodels.ligandmpnn.run import cli, setup_parser
 from pdmodels.types import Device, ScoreDict
 from pdmodels.utils import clean_gpu_cache, seqs_list_to_tensor
 
@@ -535,13 +537,17 @@ class MPNN(nn.Module):
         feature_dict = self._featurize(protein_dict)
 
         # remap R_idx and add batch dimension
-        if not batch_seqs_list:
-            seqs_num = 1
-            feature_dict["batch_size"] = repeat
-        else:
+        if seqs_list_:
             seqs_num = len(seqs_list_)
             feature_dict["batch_size"] = len(batch_seqs_list)
             feature_dict["S"] = seqs_list_to_tensor(batch_seqs_list, device=self.device)
+            target = seqs_list_to_tensor(seqs_list_)
+        else:
+            seqs_num = 1
+            feature_dict["batch_size"] = repeat
+            target = (
+                feature_dict["S"].cpu().long()
+            )  # use the native sequence as the target
 
         # sample random decoding order
         feature_dict["randn"] = torch.randn(
@@ -573,7 +579,6 @@ class MPNN(nn.Module):
             .view(repeat, seqs_num, -1, 20)
             .mean(dim=0)
         )  # (B, L, 20)
-        target = feature_dict["S"].long().cpu()  # (B, L)
         loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
         perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
 
@@ -593,3 +598,15 @@ class MPNN(nn.Module):
     def sample(self, *args, **kwargs) -> None:
         """Sample sequences from the MPNN model."""
         raise NotImplementedError("Sampling is not supported for MPNN models yet.")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    setup_parser(parser)
+    args = parser.parse_args()
+
+    cli(args)
+
+
+if __name__ == "__main__":
+    main()

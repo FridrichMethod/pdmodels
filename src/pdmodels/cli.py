@@ -1,6 +1,20 @@
 import argparse
+from collections.abc import Callable
 
-from pdmodels import af2ig, esmfold
+from pdmodels import af2ig, esmfold, mpnn
+
+
+def register_subparser(
+    subparsers: argparse._SubParsersAction,
+    name: str,
+    setup_func: Callable,
+    cli_func: Callable,
+    **kwargs,
+) -> None:
+    """Helper function to register a subparser."""
+    parser = subparsers.add_parser(name, **kwargs)
+    setup_func(parser)
+    parser.set_defaults(func=cli_func)
 
 
 def main():
@@ -10,14 +24,23 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Add af2ig
-    parser_af2ig = subparsers.add_parser("af2ig", help="AlphaFold2 Initial Guess")
-    af2ig.setup_parser(parser_af2ig)
-    parser_af2ig.set_defaults(func=af2ig.cli)
+    register_subparser(
+        subparsers,
+        "af2ig",
+        af2ig.setup_parser,
+        af2ig.cli,
+        help="AlphaFold2 initial guess",
+    )
 
     # Add esmfold
-    parser_esmfold = subparsers.add_parser("esmfold", help="ESMFold")
-    esmfold.setup_parser(parser_esmfold)
-    parser_esmfold.set_defaults(func=esmfold.cli)
+    register_subparser(
+        subparsers, "esmfold", esmfold.setup_parser, esmfold.cli, help="ESMFold"
+    )
+
+    # Add mpnn
+    register_subparser(
+        subparsers, "mpnn", mpnn.setup_parser, mpnn.cli, help="MPNN sampling"
+    )
 
     args = parser.parse_args()
     args.func(args)
