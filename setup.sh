@@ -75,4 +75,4 @@ uv pip install mdtraj
 uv pip install modelcif
 
 # Install the pdmodels package
-pip install -e .
+uv pip install -e .
