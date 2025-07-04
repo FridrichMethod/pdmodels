@@ -222,8 +222,8 @@ class ReVor(nn.Module):
         - The actual batch size is `batch_size * repeat` if `repeat` is in self.kwargs.
         """
 
-        if input_path.endswith(".pkl"):
-            self.load(input_path)
+        if os.path.exists(checkpoint_path):
+            self.load(checkpoint_path)
         elif input_path.endswith(".fasta"):
             with open(input_path) as f:
                 for title, seqs in SimpleFastaParser(f):
@@ -237,7 +237,9 @@ class ReVor(nn.Module):
                     )
         else:
             raise ValueError(
-                "Input file must be either a FASTA file or a checkpoint file."
+                f"Invalid input: '{input_path}' is not a FASTA file (.fasta extension) "
+                f"and no checkpoint file exists at '{checkpoint_path}'. "
+                f"Please provide either a valid FASTA file or ensure a checkpoint file exists."
             )
 
         seqs_list: list[str] = []
