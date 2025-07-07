@@ -69,6 +69,7 @@ uv pip install transformers
 uv pip install scikit-learn
 uv pip install matplotlib
 uv pip install seaborn
+uv pip install ipympl
 uv pip install py3Dmol
 uv pip install biotite
 uv pip install mdtraj

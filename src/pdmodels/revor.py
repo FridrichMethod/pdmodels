@@ -3,7 +3,7 @@ import pickle
 import tempfile
 from collections import deque
 from collections.abc import Callable
-from typing import Any, Self
+from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -25,6 +25,104 @@ NODE_COLORS: dict[str, str] = {
     "intermediate": "skyblue",
     "end": "red",
 }
+
+
+def get_subdag(dag: nx.DiGraph, titles: list[str]) -> nx.DiGraph:
+    """Get the subgraph of a DAG."""
+    reachable_nodes = set()
+    for title in titles:
+        root = next(
+            (node for node, data in dag.nodes(data=True) if data["title"] == title),
+            None,
+        )
+        if root is None:
+            raise ValueError(f"No node found with title '{title}'.")
+        reachable_nodes |= nx.descendants(dag, root) | {root}
+
+    subdag = dag.subgraph(reachable_nodes)
+
+    return subdag
+
+
+def plot_dag(
+    dag: nx.DiGraph,
+    layout: Callable,
+    subdag_titles: str | list[str] | None = None,
+    figsize: tuple[float, float] | None = None,
+    dpi: float | None = None,
+    **kwargs,
+) -> None:
+    """Plot the subgraph of a DAG.
+
+    Args:
+    -----
+    dag: nx.DiGraph
+        Directed acyclic graph to plot.
+    layout: Callable
+        Layout function to plot the graph.
+    subdag_titles: str | list[str] | None
+        Title of the starting sequence to plot the subgraph.
+    figsize: tuple[float, float] | None
+        Size of the figure.
+    dpi: float | None
+        Dots per inch of the figure.
+    kwargs: dict
+        Additional keyword arguments for the layout function.
+    """
+
+    if subdag_titles is None:
+        subdag = dag
+    elif isinstance(subdag_titles, str):
+        subdag = get_subdag(dag, [subdag_titles])
+    else:
+        subdag = get_subdag(dag, subdag_titles)
+
+    plt.figure(figsize=figsize, dpi=dpi)
+
+    pos = layout(subdag, **kwargs)
+    node_color = [NODE_COLORS[data["role"]] for _, data in subdag.nodes(data=True)]
+    nx.draw(
+        subdag,
+        pos,
+        node_size=100,
+        node_color=node_color,
+        edge_color="gray",
+        alpha=0.5,
+    )
+
+    node_labels = {}
+    for node, data in subdag.nodes(data=True):
+        if data["role"] == "start":
+            node_labels[node] = data["title"]
+        elif data["role"] == "end":
+            node_labels[node] = f"{data['distance']} mutations"
+    nx.draw_networkx_labels(
+        subdag, pos, labels=node_labels, font_size=8, font_weight="bold"
+    )
+    edge_labels = nx.get_edge_attributes(subdag, "weight")
+    nx.draw_networkx_edge_labels(subdag, pos, edge_labels=edge_labels, font_size=8)
+
+    plt.legend(
+        handles=[
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                label=role,
+                markerfacecolor=color,
+                markersize=10,
+            )
+            for role, color in NODE_COLORS.items()
+        ]
+    )
+    plt.show()
+    plt.close()
+
+
+def get_results(dag: nx.DiGraph) -> dict[str, dict[str, Any]]:
+    """Get the results of a DAG."""
+    return {node: data for node, data in dag.nodes(data=True) if data["role"] == "end"}
 
 
 class ReVor(nn.Module):
@@ -82,7 +180,7 @@ class ReVor(nn.Module):
                 f"Failed to save checkpoint to {checkpoint_path}: {e}"
             ) from e
 
-    def load(self, checkpoint_path: str) -> Self:
+    def _load_checkpoint(self, checkpoint_path: str) -> None:
         """Load the checkpoint of the ReVor model."""
         with open(checkpoint_path, "rb") as f:
             checkpoint = pickle.load(f)
@@ -90,8 +188,6 @@ class ReVor(nn.Module):
         self.dag = checkpoint["dag"]
         self.q = checkpoint["q"]
         self.it = checkpoint["it"]
-
-        return self
 
     def _score(self, seqs_list: list[str]) -> torch.Tensor:
         """Calculate the average loss for a batch of sequences."""
@@ -223,7 +319,7 @@ class ReVor(nn.Module):
         """
 
         if os.path.exists(checkpoint_path):
-            self.load(checkpoint_path)
+            self._load_checkpoint(checkpoint_path)
         elif input_path.endswith(".fasta"):
             with open(input_path) as f:
                 for title, seqs in SimpleFastaParser(f):
@@ -288,103 +384,24 @@ class ReVor(nn.Module):
             if self.dag.in_degree(node) > 0 and self.dag.out_degree(node) > 0
         )
 
-    def get_subdag(self, titles: list[str]) -> nx.DiGraph:
-        """Get the subgraph of the reverted sequences starting from the given title."""
-        reachable_nodes = set()
-        for title in titles:
-            root = next(
-                (
-                    node
-                    for node, data in self.dag.nodes(data=True)
-                    if data["title"] == title
-                ),
-                None,
-            )
-            if root is None:
-                raise ValueError(f"No node found with title '{title}'.")
-            reachable_nodes |= nx.descendants(self.dag, root) | {root}
-
-        subdag = self.dag.subgraph(reachable_nodes)
-
-        return subdag
-
     def plot(
         self,
         layout: Callable,
         subdag_titles: str | list[str] | None = None,
-        figsize: tuple[int, int] | None = None,
+        figsize: tuple[float, float] | None = None,
+        dpi: float | None = None,
         **kwargs,
     ) -> None:
-        """Plot the graph of the reverted sequences.
+        """Plot the graph of the reverted sequences."""
 
-        Args:
-        -----
-        layout: Callable
-            Layout function to plot the graph.
-        subdag_titles: str | list[str]
-            Title of the starting sequence to plot the subgraph.
-        figsize: tuple[int, int]
-            Size of the figure.
-        kwargs: dict
-            Additional keyword arguments for the layout function.
-        """
-
-        if subdag_titles is None:
-            subdag = self.dag
-        elif isinstance(subdag_titles, str):
-            subdag = self.get_subdag([subdag_titles])
-        else:
-            subdag = self.get_subdag(subdag_titles)
-
-        plt.figure(figsize=figsize)
-
-        pos = layout(subdag, **kwargs)
-        node_color = [NODE_COLORS[data["role"]] for _, data in subdag.nodes(data=True)]
-        nx.draw(
-            subdag,
-            pos,
-            node_size=100,
-            node_color=node_color,
-            edge_color="gray",
-            alpha=0.5,
+        plot_dag(
+            self.dag,
+            layout,
+            subdag_titles,
+            figsize,
+            dpi,
+            **kwargs,
         )
-
-        node_labels = {}
-        for node, data in subdag.nodes(data=True):
-            if data["role"] == "start":
-                node_labels[node] = data["title"]
-            elif data["role"] == "end":
-                node_labels[node] = f"{data['distance']} mutations"
-        nx.draw_networkx_labels(
-            subdag, pos, labels=node_labels, font_size=8, font_weight="bold"
-        )
-        edge_labels = nx.get_edge_attributes(subdag, "weight")
-        nx.draw_networkx_edge_labels(subdag, pos, edge_labels=edge_labels, font_size=8)
-
-        plt.legend(
-            handles=[
-                Line2D(
-                    [0],
-                    [0],
-                    marker="o",
-                    color="w",
-                    label=role,
-                    markerfacecolor=color,
-                    markersize=10,
-                )
-                for role, color in NODE_COLORS.items()
-            ]
-        )
-        plt.show()
-        plt.close()
-
-    def get_results(self) -> dict[str, dict[str, Any]]:
-        """Get the results of the reverted sequences."""
-        return {
-            node: data
-            for node, data in self.dag.nodes(data=True)
-            if data["role"] == "end"
-        }
 
     def save(self, output_dir: str) -> None:
         """Save the reverted sequences and the graph."""
@@ -400,5 +417,4 @@ class ReVor(nn.Module):
 
         output_graph_path = os.path.join(output_dir, "graph.pkl")
         with open(output_graph_path, "wb") as f:
-            pickle.dump(self.dag, f, pickle.HIGHEST_PROTOCOL)
             pickle.dump(self.dag, f, pickle.HIGHEST_PROTOCOL)
