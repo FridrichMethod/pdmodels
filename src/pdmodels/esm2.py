@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Literal
 
 import torch
 import torch.nn as nn
@@ -12,7 +13,13 @@ from pdmodels.utils import clean_gpu_cache
 class ESM2(nn.Module):
     """ESM2 model for scoring complex structures."""
 
-    def __init__(self, model_name: str, device: Device = None) -> None:
+    def __init__(
+        self,
+        model_name: Literal[
+            "facebook/esm2_t36_3B_UR50D", "facebook/esm2_t33_650M_UR50D"
+        ],
+        device: Device = None,
+    ) -> None:
         """Initialize the ESM2 model."""
         super().__init__()
 

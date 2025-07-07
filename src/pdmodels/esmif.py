@@ -249,9 +249,9 @@ class ESMIF(nn.Module):
         prev_output_tokens = tokens[:, :-1]
         B, L = prev_output_tokens.shape
 
-        logits = self.model(coords, padding_mask, confidence, prev_output_tokens)[
-            0
-        ].cpu()
+        logits: torch.Tensor = self.model(
+            coords, padding_mask, confidence, prev_output_tokens
+        )[0].cpu()
 
         if truncate:
             all_indices_array = all_indices_array[
