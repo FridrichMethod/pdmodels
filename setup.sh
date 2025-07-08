@@ -67,6 +67,7 @@ uv pip install numpy --upgrade
 # Install additional libraries
 uv pip install transformers
 uv pip install scikit-learn
+uv pip install rdkit
 uv pip install matplotlib
 uv pip install seaborn
 uv pip install ipympl

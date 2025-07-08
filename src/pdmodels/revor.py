@@ -3,11 +3,11 @@ import pickle
 import tempfile
 from collections import deque
 from collections.abc import Callable
-from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from Bio.SeqIO.FastaIO import SimpleFastaParser
@@ -120,9 +120,15 @@ def plot_dag(
     plt.close()
 
 
-def get_results(dag: nx.DiGraph) -> dict[str, dict[str, Any]]:
+def get_results(dag: nx.DiGraph) -> pd.DataFrame:
     """Get the results of a DAG."""
-    return {node: data for node, data in dag.nodes(data=True) if data["role"] == "end"}
+    results_dict = {
+        node: data for node, data in dag.nodes(data=True) if data["role"] == "end"
+    }
+    df = pd.DataFrame.from_dict(results_dict, orient="index")
+    df = df.reset_index().rename(columns={"index": "sequence"})
+
+    return df
 
 
 class ReVor(nn.Module):
