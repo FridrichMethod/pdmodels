@@ -728,9 +728,9 @@ class Af2Ig:
         """Loads the user-specified AlphaFold2 model."""
         model_config = config.model_config(self.model_name)
         if self.is_multimer:
-            model_config.model.num_ensemble_eval = 1
+            model_config.model.num_ensemble_eval = 1  # type: ignore
         else:
-            model_config.data.eval.num_ensemble = 1
+            model_config.data.eval.num_ensemble = 1  # type: ignore
         model_params = data.get_model_haiku_params(
             model_name=self.model_name, data_dir=self.data_dir
         )
