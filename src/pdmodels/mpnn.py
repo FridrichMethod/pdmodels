@@ -476,7 +476,7 @@ class MPNN(nn.Module):
         ------
         pdb_path: str
             The path to the PDB file containing the complex structure.
-        seqs_list: Sequence[str]
+        seqs_list: Sequence[str] | None
             A list of sequences to score towards the complex structure.
             Chains are separated by colons.
         repeat: int

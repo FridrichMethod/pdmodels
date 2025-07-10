@@ -15,7 +15,7 @@ from esm.inverse_folding.multichain_util import (
 )
 from esm.inverse_folding.util import CoordBatchConverter, load_structure
 
-from pdmodels.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
+from pdmodels.globals import AA_ALPHABET, CHAIN_ALPHABET
 from pdmodels.types import Device, ScoreDict
 from pdmodels.utils import clean_gpu_cache, seqs_list_to_tensor
 
@@ -194,10 +194,16 @@ class ESMIF(nn.Module):
                 Cross entropy of the true residue at each position.
             perplexity: torch.Tensor[B,]
                 exp{average entropy} of the full sequence.
+
+        Notes
+        -----
+        - Please make sure that the chain letters in the PDB file match the order of the sequences in seqs_list.
         """
 
         native_coords, native_seqs = load_native_coords_and_seqs(pdb_path)
 
+        # Check if the native chain ids match the expected alphabetical order for safety
+        assert "".join(native_seqs.keys()) == CHAIN_ALPHABET[: len(native_seqs)]
         if seqs_list is None:
             seqs_list = [":".join(native_seqs.values())]
         seq_dict_list = [
