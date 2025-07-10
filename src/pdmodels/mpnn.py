@@ -500,6 +500,8 @@ class MPNN(nn.Module):
         output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
                 -log{logits} of the masked token at each position.
+            target: torch.Tensor[B, L]
+                The target sequence tensor.
             loss: torch.Tensor[B, L]
                 Cross entropy of the true residue at each position.
             perplexity: torch.Tensor[B,]
@@ -587,6 +589,7 @@ class MPNN(nn.Module):
 
         output_dict: ScoreDict = {
             "entropy": entropy,
+            "target": target,
             "loss": loss,
             "perplexity": perplexity,
         }
