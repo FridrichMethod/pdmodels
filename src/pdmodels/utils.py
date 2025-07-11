@@ -2,8 +2,8 @@ import os
 import pickle
 import time
 from collections.abc import Callable, Sequence
-from functools import wraps
-from typing import Literal
+from functools import lru_cache, wraps
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,8 @@ from pymol import cmd
 from scipy.spatial import distance_matrix
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
-from pdmodels.types import Device
+from pdmodels.ligandmpnn.data_utils import parse_PDB as _parse_PDB
+from pdmodels.types import Device, ScoreDict
 
 
 class Timer:
@@ -99,6 +100,47 @@ def tensor_to_seqs_list(aa_tensor: torch.Tensor, chain_breaks: list[int]) -> lis
         for chains in zip(*chain_array_list)
     ]
     return seqs_list
+
+
+def average_score_dicts(score_dicts: list[ScoreDict]) -> ScoreDict:
+    """Average multiple score dictionaries."""
+    entropies = torch.stack([score_dict["entropy"] for score_dict in score_dicts])
+    targets = torch.stack([score_dict["target"] for score_dict in score_dicts])
+
+    # Test if all targets are equal
+    if not torch.all(targets[0] == targets):
+        raise ValueError("All targets must be equal to average score dictionaries.")
+
+    # Average and normalize the entropies
+    entropy = -torch.mean(-entropies, dim=0).log_softmax(dim=-1)  # (B, L, 20)
+    target = targets[0]  # (B, L)
+    loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
+    perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
+
+    output_dict: ScoreDict = {
+        "entropy": entropy,
+        "target": target,
+        "loss": loss,
+        "perplexity": perplexity,
+    }
+
+    return output_dict
+
+
+@lru_cache(maxsize=128)
+def parse_PDB(
+    pdb_path: str,
+    device: Device = None,
+    parse_all_atoms: bool = False,
+) -> dict[str, Any]:
+    """Parse the PDB file and create the feature dictionary for the MPNN model."""
+    protein_dict = _parse_PDB(
+        pdb_path,
+        device=device,  # type: ignore
+        parse_all_atoms=parse_all_atoms,
+    )[0]
+
+    return protein_dict
 
 
 def count_mutations(
@@ -301,6 +343,62 @@ def calculate_distance_matrix(pdb_path: str) -> tuple[np.ndarray, np.ndarray]:
     mask = np.array(mask_list)
 
     return distance_matrix(coords, coords), mask
+
+
+def get_chain_mask(
+    chain_letters: list[str],
+    R_idx: list[int],
+    chains_to_design: str,
+    redesigned_residues: str,
+    use_sequence: bool = True,
+    device: Device = None,
+) -> torch.Tensor:
+    """Create a chain mask to notify which residues are fixed (0) and which need to be designed (1).
+
+    Args
+    ------
+    chain_letters: list[str]
+        A list of chain letters of the protein structure.
+    R_idx: list[int]
+        A list of residue indices of the protein structure.
+    chains_to_design: str
+        A comma-separated list of chain letters of the redesign chains.
+        This option is only used to identify the regions not to use side chain context.
+    redesigned_residues: str
+        A space-separated list of chain letter and residue number pairs of the redesigned residues.
+        This option is only used to identify the regions not to use side chain context.
+    use_sequence: bool
+        Whether to use the sequence information in the scoring method.
+    device: Device
+        The device to use for the output tensor. If None, uses the default device.
+
+    Returns
+    -------
+    chain_mask: torch.Tensor
+        A binary tensor notifying which residues are redesignable.
+    """
+
+    if not use_sequence:
+        return torch.ones(len(R_idx), device=device)
+
+    chains_to_design_list = [
+        chain.strip() for chain in chains_to_design.split(",") if chain.strip()
+    ]  # chains_to_design.split(",") will not remove empty strings
+    redesigned_residues_list = redesigned_residues.split()
+
+    if chains_to_design_list or redesigned_residues_list:
+        chain_mask = [
+            (chain_letter in chains_to_design_list)
+            or (f"{chain_letter}{R_id}" in redesigned_residues_list)
+            for chain_letter, R_id in zip(chain_letters, R_idx)
+        ]
+        return torch.tensor(
+            chain_mask,
+            device=device,
+            dtype=torch.float32,
+        )
+    else:
+        return torch.ones(len(R_idx), device=device)
 
 
 def get_dms_libary(seqs_wt: str) -> list[tuple[str, str]]:

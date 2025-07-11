@@ -1,7 +1,6 @@
 import argparse
 import random
 from collections.abc import Sequence
-from functools import lru_cache
 from typing import Any, Literal, TypedDict
 
 import numpy as np
@@ -9,11 +8,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from pdmodels.ligandmpnn.data_utils import element_dict_rev, featurize, parse_PDB
+from pdmodels.ligandmpnn.data_utils import element_dict_rev, featurize
 from pdmodels.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
 from pdmodels.ligandmpnn.run import cli, setup_parser
 from pdmodels.types import Device, ScoreDict
-from pdmodels.utils import clean_gpu_cache, seqs_list_to_tensor
+from pdmodels.utils import (
+    clean_gpu_cache,
+    get_chain_mask,
+    parse_PDB,
+    seqs_list_to_tensor,
+)
 
 
 class MPNNFeatureDict(TypedDict):
@@ -318,75 +322,6 @@ class MPNN(nn.Module):
         """Return the device on which the model is loaded."""
         return next(self.model.parameters()).device
 
-    @staticmethod
-    @lru_cache(maxsize=None)
-    def _parse_PDB(
-        pdb_path: str,
-        device: Device = None,
-        ligand_mpnn_use_side_chain_context: bool = False,
-    ) -> dict[str, Any]:
-        """Parse the PDB file and create the feature dictionary for the MPNN model."""
-        protein_dict = parse_PDB(
-            pdb_path,
-            device=device,  # type: ignore
-            parse_all_atoms=ligand_mpnn_use_side_chain_context,
-        )[0]
-
-        return protein_dict
-
-    def _get_chain_mask(
-        self,
-        chain_letters: list[str],
-        R_idx: list[int],
-        chains_to_design: str,
-        redesigned_residues: str,
-        use_sequence: bool = True,
-    ) -> torch.Tensor:
-        """Create a chain mask to notify which residues are fixed (0) and which need to be designed (1).
-
-        Args
-        ------
-        chain_letters: list[str]
-            A list of chain letters of the protein structure.
-        R_idx: list[int]
-            A list of residue indices of the protein structure.
-        chains_to_design: str
-            A comma-separated list of chain letters of the redesign chains.
-            This option is only used to identify the regions not to use side chain context.
-        redesigned_residues: str
-            A space-separated list of chain letter and residue number pairs of the redesigned residues.
-            This option is only used to identify the regions not to use side chain context.
-        use_sequence: bool
-            Whether to use the sequence information in the scoring method.
-
-        Returns
-        -------
-        chain_mask: torch.Tensor
-            A binary tensor notifying which residues are redesignable.
-        """
-
-        if not use_sequence:
-            return torch.ones(len(R_idx), device=self.device)
-
-        chains_to_design_list = [
-            chain.strip() for chain in chains_to_design.split(",") if chain.strip()
-        ]  # chains_to_design.split(",") will not remove empty strings
-        redesigned_residues_list = redesigned_residues.split()
-
-        if chains_to_design_list or redesigned_residues_list:
-            chain_mask = [
-                (chain_letter in chains_to_design_list)
-                or (f"{chain_letter}{R_id}" in redesigned_residues_list)
-                for chain_letter, R_id in zip(chain_letters, R_idx)
-            ]
-            return torch.tensor(
-                chain_mask,
-                device=self.device,
-                dtype=torch.float32,
-            )
-        else:
-            return torch.ones(len(R_idx), device=self.device)
-
     def _featurize(self, protein_dict: dict[str, Any]) -> MPNNFeatureDict:
         """Featurize the protein structure and sequences for the MPNN model."""
 
@@ -509,20 +444,21 @@ class MPNN(nn.Module):
 
         Notes
         ------
-        - If chains_to_design and redesigned_residues are empty, all residues are considered redesignable.
-        - If chains_to_design and redesigned_residues are both provided, the union of the two is used.
-        - The chains_to_design and redesigned_residues flags are only used
+        - Please make sure that the chain letters in the PDB file match the order of the sequences in `seqs_list`.
+        - If `chains_to_design` and `redesigned_residues` are empty, all residues are considered redesignable.
+        - If `chains_to_design` and `redesigned_residues` are both provided, the union of the two is used.
+        - The `chains_to_design` and `redesigned_residues` flags are only used
             to identify the regions not to use side chain context in the structural encoder.
-        - If seqs_list is empty or not provided, the native sequence is used as the target.
-        - All sequences in the seqs_list should have the same length of each chain as the native sequence.
-        - The use_sequence option is only used to determine if sequence information is used in the sequence decoder.
+        - If `seqs_list` is empty or not provided, the native sequence is used as the target.
+        - All sequences in the `seqs_list` should have the same length of each chain as the native sequence.
+        - The `use_sequence` option is only used to determine if sequence information is used in the sequence decoder.
         - The actual batch size is `len(seqs_list) * repeat` if `repeat` is provided.
         """
 
-        protein_dict = self._parse_PDB(
+        protein_dict = parse_PDB(
             pdb_path,
-            device=self.device,
-            ligand_mpnn_use_side_chain_context=self.ligand_mpnn_use_side_chain_context,
+            device=self.device,  # type: ignore
+            parse_all_atoms=self.ligand_mpnn_use_side_chain_context,
         )
 
         seqs_list_: list[str] = list(seqs_list) if seqs_list is not None else []
@@ -531,8 +467,13 @@ class MPNN(nn.Module):
         # create chain mask
         chain_letters = protein_dict["chain_letters"]
         R_idx = protein_dict["R_idx"].cpu().tolist()
-        chain_mask = self._get_chain_mask(
-            chain_letters, R_idx, chains_to_design, redesigned_residues
+        chain_mask = get_chain_mask(
+            chain_letters,
+            R_idx,
+            chains_to_design,
+            redesigned_residues,
+            use_sequence=use_sequence,
+            device=self.device,
         )
         protein_dict["chain_mask"] = chain_mask
 
