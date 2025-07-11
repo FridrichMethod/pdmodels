@@ -16,6 +16,9 @@ export TF_FORCE_GPU_ALLOW_GROWTH="true"
 export LIBRARY_PATH=$CONDA_PREFIX/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
+# Set up conda environment variables for AlphaFold3
+mv "$CONDA_PREFIX"/compiler_compat/ld{,.bak}
+
 # Install uv and set up Python 3.12
 pip install uv
 

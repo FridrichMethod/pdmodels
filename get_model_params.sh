@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 output_dir="./model_params"
 
 # Create the output directory if it doesn't exist
