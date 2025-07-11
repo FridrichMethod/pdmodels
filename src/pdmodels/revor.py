@@ -3,26 +3,29 @@ import pickle
 import tempfile
 from collections import deque
 from collections.abc import Callable
+from typing import Any
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from matplotlib.lines import Line2D
 
-from pdmodels.esmif import ESMIF
-from pdmodels.mpnn import MPNN
-from pdmodels.types import Device
-from pdmodels.utils import count_mutations, seqs_list_to_tensor, tensor_to_seqs_list
-
-InverseFoldingModel = MPNN | ESMIF
+from pdmodels.types import ScoreDict
+from pdmodels.utils import (
+    average_score_dicts,
+    count_mutations,
+    get_chain_mask,
+    parse_PDB,
+    seqs_list_to_tensor,
+    tensor_to_seqs_list,
+)
 
 NODE_COLORS: dict[str, str] = {
-    "start": "green",
-    "intermediate": "skyblue",
+    "start": "lightgreen",
+    "intermediate": "dodgerblue",
     "end": "red",
 }
 
@@ -50,7 +53,7 @@ def plot_dag(
     subdag_titles: str | list[str] | None = None,
     figsize: tuple[float, float] | None = None,
     dpi: float | None = None,
-    **kwargs,
+    **layout_kwargs: Any,
 ) -> None:
     """Plot the subgraph of a DAG.
 
@@ -66,7 +69,7 @@ def plot_dag(
         Size of the figure.
     dpi: float | None
         Dots per inch of the figure.
-    kwargs: dict
+    layout_kwargs: dict
         Additional keyword arguments for the layout function.
     """
 
@@ -79,15 +82,25 @@ def plot_dag(
 
     plt.figure(figsize=figsize, dpi=dpi)
 
-    pos = layout(subdag, **kwargs)
+    pos = layout(subdag, **layout_kwargs)
     node_color = [NODE_COLORS[data["role"]] for _, data in subdag.nodes(data=True)]
+    node_alpha_raw = np.array(
+        [data["perplexity"] for _, data in subdag.nodes(data=True)]
+    )
+    min_alpha = np.min(node_alpha_raw)
+    max_alpha = np.max(node_alpha_raw)
+    if min_alpha == max_alpha:
+        node_alpha = 0.6
+    else:
+        node_alpha = 0.2 + 0.8 * (node_alpha_raw - min_alpha) / (max_alpha - min_alpha)
+        node_alpha = np.clip(node_alpha, 0.2, 1.0)
     nx.draw(
         subdag,
         pos,
         node_size=100,
         node_color=node_color,
         edge_color="gray",
-        alpha=0.5,
+        alpha=node_alpha,
     )
 
     node_labels = {}
@@ -131,32 +144,44 @@ def get_results(dag: nx.DiGraph) -> pd.DataFrame:
     return df
 
 
-class ReVor(nn.Module):
+class ReVor:
     """Reversed evolution for backward Monte Carlo sampling of largely mutated sequences."""
 
     def __init__(
-        self, model: InverseFoldingModel, pdb_path: str, seq_wt: str, **kwargs
+        self,
+        score_funcs: Callable | dict[str, Callable],
+        pdb_path: str,
+        seq_wt: str,
+        chains_to_revert: str = "",
+        reverted_residues: str = "",
     ) -> None:
         """Initialize the ReVor model."""
         super().__init__()
 
-        self.model = model
-        self._device = model.device
+        if not isinstance(score_funcs, dict):
+            score_funcs = {"score_func": score_funcs}
+        self.score_funcs = score_funcs
         self.pdb_path = pdb_path
         self.seqs_wt = seq_wt
-        self.kwargs = kwargs
 
         self.dag: nx.DiGraph = nx.DiGraph()
         self.q: deque[str] = deque()
         self.it: int = 0
 
-        self.aa_wt = seqs_list_to_tensor([self.seqs_wt]).squeeze(0)  # TODO: device
+        self.aa_wt = seqs_list_to_tensor([self.seqs_wt]).squeeze(0)
         self.chain_breaks = [len(seq_wt) for seq_wt in self.seqs_wt.split(":")]
 
-    @property
-    def device(self) -> Device:
-        """Return the device on which the model is loaded."""
-        return next(self.model.parameters()).device
+        protein_dict = parse_PDB(pdb_path)
+        chain_letters = protein_dict["chain_letters"]
+        R_idx = protein_dict["R_idx"].cpu().tolist()
+        chain_mask = get_chain_mask(
+            chain_letters,
+            R_idx,
+            chains_to_revert,
+            reverted_residues,
+        ).bool()
+
+        self.chain_mask = chain_mask  # (L,)
 
     def _save_checkpoint(self, checkpoint_path: str) -> None:
         """Save the checkpoint of the ReVor model."""
@@ -196,46 +221,97 @@ class ReVor(nn.Module):
         self.it = checkpoint["it"]
 
     def _score(self, seqs_list: list[str]) -> torch.Tensor:
-        """Calculate the average loss for a batch of sequences."""
-        seqs_num = len(seqs_list)
+        """Calculate the average delta loss for a batch of sequences."""
 
-        output_dict = self.model.score(self.pdb_path, seqs_list, **self.kwargs)
+        score_dict_dict = self._apply_score_funcs(seqs_list)
+        perplexity_dict = {
+            name: score_dict["perplexity"]
+            for name, score_dict in score_dict_dict.items()
+        }
+        score_dicts = list(score_dict_dict.values())
+        output_dict = average_score_dicts(score_dicts)
+
         entropy = output_dict["entropy"]  # (B, L, 20)
         loss = output_dict["loss"]  # (B, L)
+        perplexity = output_dict["perplexity"]  # (B,)
 
-        target = self.aa_wt.repeat(seqs_num, 1)  # (B, L)
-        loss_wt = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
+        seqs_num = len(seqs_list)
+        target_wt = self.aa_wt.repeat(seqs_num, 1)  # (B, L)
+        loss_wt = torch.gather(entropy, 2, target_wt.unsqueeze(2)).squeeze(2)  # (B, L)
+        score = loss - loss_wt  # (B, L)
 
-        score = loss - loss_wt
+        # Update the DAG with the perplexity values
+        for name, perplexity_ in perplexity_dict.items():
+            perplexity_name = f"perplexity_{name}"
+            for seqs, p_ in zip(seqs_list, perplexity_.tolist()):
+                self.dag.nodes[seqs][perplexity_name] = p_
+        for seqs, p in zip(seqs_list, perplexity.tolist()):
+            self.dag.nodes[seqs]["perplexity"] = p
 
         return score
+
+    def _apply_score_funcs(self, seqs_list: list[str]) -> dict[str, ScoreDict]:
+        """Compute the scores for a batch of sequences using the provided score functions."""
+        return {
+            name: score_func(seqs_list) for name, score_func in self.score_funcs.items()
+        }
 
     def _iterate(
         self,
         seqs_list: list[str],
         cutoff: float,
         max_step: int,
-        n_samples: int,
+        max_retry: int,
+        num_samples: int,
+        mutate_prob: float,
         temperature: float,
     ) -> None:
         """Iterate over the sequences and revert the mutations that increase the loss."""
 
         self.it += 1
 
-        aa_tensor = seqs_list_to_tensor(seqs_list)
-        mutation_mask = aa_tensor != self.aa_wt
+        aa_tensor = seqs_list_to_tensor(seqs_list)  # (B, L)
+        mutation_mask = aa_tensor != self.aa_wt  # (B, L)
 
-        # Calculate the score for reverting the mutations
+        # Calculate the score to revert the mutations
         score = self._score(seqs_list)
-        score[~mutation_mask] = -np.inf
+
+        score = score.masked_fill(~self.chain_mask, -torch.inf)
+        score = score.masked_fill(~mutation_mask, -torch.inf)
         revert_values, revert_indices = torch.topk(score, max_step)
         revert_mask = torch.zeros_like(aa_tensor, dtype=torch.bool).scatter(
             1, revert_indices, revert_values > cutoff
-        )
-        score[~revert_mask] = -np.inf
+        )  # (B, L)
+        score = score.masked_fill(~revert_mask, -torch.inf)
 
-        # Filter out the sequences that satisfy the cutoff
-        terminate_mask = revert_mask.any(dim=1)
+        # Candidate sequences to be sampled for reversion
+        # True if at least one mutation is to be reverted
+        candidate_mask = revert_mask.any(dim=1)  # (B,)
+
+        # Sample the mutations to revert
+        raw_prob = torch.tanh(score / temperature / 2)  # (B, L)
+        prob = mutate_prob * torch.clamp(raw_prob, 0, 1).unsqueeze(1).repeat(
+            1, num_samples, 1
+        )  # (B, N, L)
+
+        sample_mask = torch.bernoulli(prob).bool()  # (B, N, L)
+        for i in range(max_retry):
+            # Resample the sequences that are candidate but not reverted
+            # True if already sampled or not a candidate (no need to resample)
+            resample_mask = sample_mask.any(dim=(1, 2)) | (~candidate_mask)  # (B,)
+            if torch.all(resample_mask):
+                break
+            print(
+                f"Retry {i + 1}/{max_retry} for {len(seqs_list)} sequences, "
+                f"resampling {(~resample_mask).sum().item()} sequences"
+            )
+            sample_mask[~resample_mask] = torch.bernoulli(prob[~resample_mask]).bool()
+
+        # Terminate sequences that are not reverted after retries
+        # True if at least one mutation is reverted
+        terminate_mask = sample_mask.any(dim=(1, 2))  # (B,)
+
+        # Mark terminated sequences as "end" in the DAG
         seqs_list_filtered = []
         for seqs, mask in zip(seqs_list, terminate_mask.tolist()):
             if mask:
@@ -245,29 +321,20 @@ class ReVor(nn.Module):
         if not seqs_list_filtered:
             return
 
-        seqs_num_filtered = len(seqs_list_filtered)
+        # Filter the tensors based on the terminate mask
+        seqs_num_filtered = len(seqs_list_filtered)  # B'
         aa_tensor_filtered = aa_tensor[terminate_mask]  # (B', L)
-        score_filtered = score[terminate_mask]  # (B', L)
-
-        # Sample the mutations to revert
-        prob = (
-            torch.sigmoid(score_filtered / temperature)
-            .unsqueeze(1)
-            .repeat(1, n_samples, 1)
-        )  # (B', N, L)
-        sample_mask = torch.bernoulli(prob).bool()
-        while not torch.all((resample_mask := sample_mask.any(dim=(1, 2)))):
-            sample_mask[~resample_mask] = torch.bernoulli(prob[~resample_mask]).bool()
+        sample_mask_filtered = sample_mask[terminate_mask]  # (B', N, L)
         new_aa_tensor = torch.where(
-            sample_mask, self.aa_wt, aa_tensor_filtered.unsqueeze(1)
+            sample_mask_filtered, self.aa_wt, aa_tensor_filtered.unsqueeze(1)
         ).view(
-            seqs_num_filtered * n_samples, -1
+            seqs_num_filtered * num_samples, -1
         )  # (B' * N, L)
 
         # Update the graph with the reverted sequences
         new_seqs_list = tensor_to_seqs_list(new_aa_tensor, self.chain_breaks)
         for i, new_seqs in enumerate(new_seqs_list):
-            old_seqs = seqs_list_filtered[i // n_samples]
+            old_seqs = seqs_list_filtered[i // num_samples]
             if new_seqs == old_seqs:
                 continue
             if new_seqs not in self.dag:
@@ -291,7 +358,9 @@ class ReVor(nn.Module):
         cutoff: float = 0.1,
         batch_size: int = 32,
         max_step: int = 3,
-        n_samples: int = 6,
+        max_retry: int = 2,
+        num_samples: int = 8,
+        mutate_prob: float = 0.6,
         temperature: float = 1.0,
         checkpoint_path: str = "",
         save_checkpoint_interval: int = 20,
@@ -309,8 +378,12 @@ class ReVor(nn.Module):
             Number of sequences to process in each batch.
         max_step: int
             Maximum number of mutations to revert in each iteration.
-        n_samples: int
+        max_retry: int
+            Maximum number of retries to sample the mutations.
+        num_samples: int
             Number of sequences to sample for reverting the mutations.
+        mutate_prob: float
+            Probability of reverting a mutation in the sampled sequences.
         temperature: float
             Temperature for sampling the mutations.
         checkpoint_path: str
@@ -362,7 +435,9 @@ class ReVor(nn.Module):
                 seqs_list,
                 cutoff,
                 max_step,
-                n_samples,
+                max_retry,
+                num_samples,
+                mutate_prob,
                 temperature,
             )
             seqs_list.clear()
@@ -396,23 +471,29 @@ class ReVor(nn.Module):
         subdag_titles: str | list[str] | None = None,
         figsize: tuple[float, float] | None = None,
         dpi: float | None = None,
-        **kwargs,
+        **layout_kwargs: Any,
     ) -> None:
         """Plot the graph of the reverted sequences."""
 
         plot_dag(
             self.dag,
             layout,
-            subdag_titles,
-            figsize,
-            dpi,
-            **kwargs,
+            subdag_titles=subdag_titles,
+            figsize=figsize,
+            dpi=dpi,
+            **layout_kwargs,
         )
+
+    @property
+    def results(self) -> pd.DataFrame:
+        """Get the results of the reverted sequences."""
+        return get_results(self.dag)
 
     def save(self, output_dir: str) -> None:
         """Save the reverted sequences and the graph."""
         os.makedirs(output_dir, exist_ok=True)
 
+        # Save sequences
         output_fasta_path = os.path.join(output_dir, "sequences.fasta")
         with open(output_fasta_path, "w") as f:
             i = 0
@@ -421,6 +502,13 @@ class ReVor(nn.Module):
                     f.write(f">{i}\n{seqs}\n")
                     i += 1
 
+        # Save graph
         output_graph_path = os.path.join(output_dir, "graph.pkl")
         with open(output_graph_path, "wb") as f:
             pickle.dump(self.dag, f, pickle.HIGHEST_PROTOCOL)
+
+        # Save results
+        self.results.to_csv(
+            os.path.join(output_dir, "results.csv"),
+            index=False,
+        )
