@@ -455,7 +455,7 @@ def extract_from_af2ig(file_path: str, seqs: str) -> pd.Series:
     chain_index = np.array(sum(([i] * len(seq) for i, seq in enumerate(seq_list)), []))
     chain_index_one_hot = np.eye(chain_num, dtype=bool)[chain_index].T
 
-    pkl_dict = {}
+    pkl_dict: dict[str, str | float] = {}
     pkl_dict["id"] = os.path.splitext(os.path.basename(file_path))[0].removeprefix(
         "result_"
     )
@@ -496,7 +496,7 @@ def extract_from_esmfold(file_path: str) -> pd.Series:
     Can be accelerated with multi-threading.
     """
 
-    data = torch.load(file_path, weights_only=True, map_location="cpu")
+    data = torch.load(file_path, weights_only=False, map_location="cpu")
 
     atom37_atom_exists = data["atom37_atom_exists"].cpu().squeeze(0)
     linker_mask = torch.any(atom37_atom_exists, dim=-1)
@@ -513,7 +513,7 @@ def extract_from_esmfold(file_path: str) -> pd.Series:
     chain_index_one_hot = F.one_hot(chain_index).bool().T
     chain_num = chain_index_one_hot.shape[0]
 
-    pt_dict = {}
+    pt_dict: dict[str, str | float] = {}
     pt_dict["id"] = os.path.splitext(os.path.basename(file_path))[0]
     pt_dict["plddt"] = mean_plddt
     pt_dict["pae"] = torch.mean(predicted_aligned_error).item()
