@@ -3,7 +3,7 @@ import pickle
 import time
 from collections.abc import Callable, Sequence
 from functools import lru_cache, wraps
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,16 @@ from scipy.spatial import distance_matrix
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
 from pdmodels.ligandmpnn.data_utils import parse_PDB as _parse_PDB
-from pdmodels.types import Device, ScoreDict
+from pdmodels.types import Device
+
+
+class ScoreDict(TypedDict):
+    """Type definition for a score dictionary."""
+
+    entropy: torch.Tensor
+    target: torch.Tensor
+    loss: torch.Tensor
+    perplexity: torch.Tensor
 
 
 class Timer:

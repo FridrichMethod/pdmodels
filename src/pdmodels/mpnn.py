@@ -11,8 +11,9 @@ import torch.nn.functional as F
 from pdmodels.ligandmpnn.data_utils import element_dict_rev, featurize
 from pdmodels.ligandmpnn.model_utils import ProteinMPNN, cat_neighbors_nodes
 from pdmodels.ligandmpnn.run import cli, setup_parser
-from pdmodels.types import Device, ScoreDict
+from pdmodels.types import Device
 from pdmodels.utils import (
+    ScoreDict,
     clean_gpu_cache,
     get_chain_mask,
     parse_PDB,
