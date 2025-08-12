@@ -14,10 +14,10 @@ from Bio.Align import substitution_matrices
 from Bio.PDB import PDBParser, is_aa
 from pymol import cmd
 from scipy.spatial import distance_matrix
+from torch.types import Device
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
 from pdmodels.ligandmpnn.data_utils import parse_PDB as _parse_PDB
-from pdmodels.types import Device
 
 
 class ScoreDict(TypedDict):

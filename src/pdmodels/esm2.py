@@ -3,11 +3,11 @@ from typing import Literal
 
 import torch
 import torch.nn as nn
+from torch.types import Device
 from transformers import AutoTokenizer, EsmForMaskedLM
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, CHAIN_ALPHABET
-from pdmodels.types import Device, ScoreDict
-from pdmodels.utils import clean_gpu_cache
+from pdmodels.utils import ScoreDict, clean_gpu_cache
 
 
 class ESM2(nn.Module):

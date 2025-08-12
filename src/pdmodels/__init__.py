@@ -9,8 +9,7 @@ from pdmodels.esmif import ESMIF
 from pdmodels.mpnn import MPNN
 from pdmodels.revor import ReVor
 
-__version__ = "0.1.1"
-__author__ = "Zhaoyang Li"
+__version__ = "0.1.2"
 
 __all__ = ["Af2Ig", "ESMFold", "ESM2", "ESMIF", "MPNN", "ReVor"]
 

@@ -13,8 +13,8 @@ import torch
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from matplotlib.lines import Line2D
 
-from pdmodels.types import ScoreDict
 from pdmodels.utils import (
+    ScoreDict,
     average_score_dicts,
     count_mutations,
     get_chain_mask,

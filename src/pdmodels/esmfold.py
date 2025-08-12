@@ -5,10 +5,10 @@ import torch
 import torch.nn as nn
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from esm.esmfold.v1.misc import batch_encode_sequences, collate_dense_tensors
+from torch.types import Device
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, EsmForProteinFolding
 
-from pdmodels.types import Device
 from pdmodels.utils import Timer
 
 
