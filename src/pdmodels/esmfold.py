@@ -18,7 +18,7 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
     @torch.no_grad()
     def infer(
         self,
-        sequences: str | list[str],
+        seqs_list: str | list[str],
         residx: torch.Tensor | None = None,
         masking_pattern: torch.Tensor | None = None,
         num_recycles: int | None = None,
@@ -26,11 +26,11 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
         chain_linker: str | None = "G" * 25,
     ) -> dict[str, torch.Tensor]:
         """Rewrite the infer method as the original ESMFold model."""
-        if isinstance(sequences, str):
-            sequences = [sequences]
+        if isinstance(seqs_list, str):
+            seqs_list = [seqs_list]
 
         aatype, mask, _residx, linker_mask, chain_index = batch_encode_sequences(
-            sequences, residue_index_offset, chain_linker
+            seqs_list, residue_index_offset, chain_linker
         )
 
         if residx is None:
