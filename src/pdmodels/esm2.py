@@ -44,7 +44,7 @@ class ESM2(nn.Module):
         return tokenizer
 
     @property
-    def device(self) -> Device:
+    def device(self) -> torch.device:
         """Return the device on which the model is loaded."""
         return next(self.model.parameters()).device
 

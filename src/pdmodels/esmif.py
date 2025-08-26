@@ -153,7 +153,7 @@ class ESMIF(nn.Module):
         return model, alphabet  # type: ignore
 
     @property
-    def device(self) -> Device:
+    def device(self) -> torch.device:
         """Return the device on which the model is loaded."""
         return next(self.model.parameters()).device
 
