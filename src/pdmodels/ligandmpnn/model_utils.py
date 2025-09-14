@@ -124,7 +124,6 @@ class ProteinMPNN(torch.nn.Module):
         ]  # [B,L] - mask for missing regions - should be removed! all ones most of the time
         # chain_labels = feature_dict["chain_labels"] #[B,L] - integer labels for chain letters
 
-        B, L = S_true.shape
         device = S_true.device
 
         if self.model_type == "ligand_mpnn":
@@ -174,6 +173,8 @@ class ProteinMPNN(torch.nn.Module):
             mask_attend = mask.unsqueeze(-1) * mask_attend
             for layer in self.encoder_layers:
                 h_V, h_E = layer(h_V, h_E, E_idx, mask, mask_attend)
+        else:
+            raise ValueError("Choose --model_type flag from currently available models")
 
         return h_V, h_E, E_idx
 

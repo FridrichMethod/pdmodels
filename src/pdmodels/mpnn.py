@@ -36,7 +36,8 @@ class ProteinMPNNBatch(ProteinMPNN):
     """The ProteinMPNN model class for batch sampling and scoring."""
 
     # TODO: Modify the sample method
-    def sample(self, *args, **kwargs) -> dict[str, torch.Tensor]: ...  # type: ignore
+    def sample(self, *args, **kwargs) -> dict[str, torch.Tensor]:
+        raise NotImplementedError("Sampling is not supported for MPNN models yet.")
 
     @staticmethod
     def _symmetric_decoding_order(
