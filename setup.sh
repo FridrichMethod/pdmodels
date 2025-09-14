@@ -42,7 +42,7 @@ uv pip install deepspeed --upgrade
 
 # Install PyTorch Geometric and its dependencies
 uv pip install torch_geometric
-uv pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
+uv pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.8.0+cu128.html
 
 # Install and patch ESM2
 uv pip install git+https://github.com/facebookresearch/esm.git
@@ -56,7 +56,7 @@ EOF
 uv pip install git+https://github.com/aqlaboratory/openfold.git --no-build-isolation
 
 # Update all CUDA libraries
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 --upgrade
+uv pip install torch torchvision --upgrade
 uv pip install nvidia-cudnn-cu12 --upgrade
 # pip list --format=freeze |
 #     cut -d'=' -f1 |
