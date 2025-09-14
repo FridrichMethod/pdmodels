@@ -64,7 +64,7 @@ uv pip install nvidia-cudnn-cu12 --upgrade
 #     xargs uv pip install --upgrade
 
 # Install ProDy
-uv pip install git+https://github.com/prody/ProDy.git
+uv pip install prody
 uv pip install numpy --upgrade
 
 # Install additional libraries
