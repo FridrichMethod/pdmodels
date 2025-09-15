@@ -56,7 +56,7 @@ EOF
 uv pip install git+https://github.com/aqlaboratory/openfold.git --no-build-isolation
 
 # Update all CUDA libraries
-uv pip install torch torchvision --upgrade
+uv pip install torch --upgrade
 uv pip install nvidia-cudnn-cu12 --upgrade
 # pip list --format=freeze |
 #     cut -d'=' -f1 |
