@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import itertools
 import sys
 
@@ -25,7 +23,7 @@ class ProteinMPNN(torch.nn.Module):
         model_type="protein_mpnn",
         ligand_mpnn_use_side_chain_context=False,
     ):
-        super(ProteinMPNN, self).__init__()
+        super().__init__()
 
         self.model_type = model_type
         self.node_features = node_features
@@ -51,16 +49,13 @@ class ProteinMPNN(torch.nn.Module):
             self.V_C = torch.nn.Linear(hidden_dim, hidden_dim, bias=False)
             self.V_C_norm = torch.nn.LayerNorm(hidden_dim)
 
-            self.context_encoder_layers = torch.nn.ModuleList(
-                [
-                    DecLayer(hidden_dim, hidden_dim * 2, dropout=dropout)
-                    for _ in range(2)
-                ]
-            )
+            self.context_encoder_layers = torch.nn.ModuleList([
+                DecLayer(hidden_dim, hidden_dim * 2, dropout=dropout) for _ in range(2)
+            ])
 
-            self.y_context_encoder_layers = torch.nn.ModuleList(
-                [DecLayerJ(hidden_dim, hidden_dim, dropout=dropout) for _ in range(2)]
-            )
+            self.y_context_encoder_layers = torch.nn.ModuleList([
+                DecLayerJ(hidden_dim, hidden_dim, dropout=dropout) for _ in range(2)
+            ])
         elif self.model_type == "protein_mpnn" or self.model_type == "soluble_mpnn":
             self.features = ProteinFeatures(
                 node_features, edge_features, top_k=k_neighbors, augment_eps=augment_eps
@@ -87,20 +82,14 @@ class ProteinMPNN(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
 
         # Encoder layers
-        self.encoder_layers = torch.nn.ModuleList(
-            [
-                EncLayer(hidden_dim, hidden_dim * 2, dropout=dropout)
-                for _ in range(num_encoder_layers)
-            ]
-        )
+        self.encoder_layers = torch.nn.ModuleList([
+            EncLayer(hidden_dim, hidden_dim * 2, dropout=dropout) for _ in range(num_encoder_layers)
+        ])
 
         # Decoder layers
-        self.decoder_layers = torch.nn.ModuleList(
-            [
-                DecLayer(hidden_dim, hidden_dim * 3, dropout=dropout)
-                for _ in range(num_decoder_layers)
-            ]
-        )
+        self.decoder_layers = torch.nn.ModuleList([
+            DecLayer(hidden_dim, hidden_dim * 3, dropout=dropout) for _ in range(num_decoder_layers)
+        ])
 
         self.W_out = torch.nn.Linear(hidden_dim, num_letters, bias=True)
 
@@ -124,6 +113,7 @@ class ProteinMPNN(torch.nn.Module):
         ]  # [B,L] - mask for missing regions - should be removed! all ones most of the time
         # chain_labels = feature_dict["chain_labels"] #[B,L] - integer labels for chain letters
 
+        B, L = S_true.shape
         device = S_true.device
 
         if self.model_type == "ligand_mpnn":
@@ -142,13 +132,9 @@ class ProteinMPNN(torch.nn.Module):
             Y_nodes = self.W_nodes_y(Y_nodes)
             Y_edges = self.W_edges_y(Y_edges)
             for i in range(len(self.context_encoder_layers)):
-                Y_nodes = self.y_context_encoder_layers[i](
-                    Y_nodes, Y_edges, Y_m, Y_m_edges
-                )
+                Y_nodes = self.y_context_encoder_layers[i](Y_nodes, Y_edges, Y_m, Y_m_edges)
                 h_E_context_cat = torch.cat([h_E_context, Y_nodes], -1)
-                h_V_C = self.context_encoder_layers[i](
-                    h_V_C, h_E_context_cat, mask, Y_m
-                )
+                h_V_C = self.context_encoder_layers[i](h_V_C, h_E_context_cat, mask, Y_m)
 
             h_V_C = self.V_C(h_V_C)
             h_V = h_V + self.V_C_norm(self.dropout(h_V_C))
@@ -173,8 +159,6 @@ class ProteinMPNN(torch.nn.Module):
             mask_attend = mask.unsqueeze(-1) * mask_attend
             for layer in self.encoder_layers:
                 h_V, h_E = layer(h_V, h_E, E_idx, mask, mask_attend)
-        else:
-            raise ValueError("Choose --model_type flag from currently available models")
 
         return h_V, h_E, E_idx
 
@@ -188,7 +172,7 @@ class ProteinMPNN(torch.nn.Module):
         B_decoder = feature_dict["batch_size"]
         S_true = feature_dict[
             "S"
-        ]  # [B,L] - integer protein sequence encoded using "restype_STRtoINT"
+        ]  # [B,L] - integer proitein sequence encoded using "restype_STRtoINT"
         # R_idx = feature_dict["R_idx"] #[B,L] - primary sequence residue index
         mask = feature_dict[
             "mask"
@@ -244,17 +228,12 @@ class ProteinMPNN(torch.nn.Module):
             mask = mask.repeat(B_decoder, 1)
             bias = bias.repeat(B_decoder, 1, 1)
 
-            all_probs = torch.zeros(
-                (B_decoder, L, 20), device=device, dtype=torch.float32
-            )
-            all_log_probs = torch.zeros(
-                (B_decoder, L, 21), device=device, dtype=torch.float32
-            )
+            all_probs = torch.zeros((B_decoder, L, 20), device=device, dtype=torch.float32)
+            all_log_probs = torch.zeros((B_decoder, L, 21), device=device, dtype=torch.float32)
             h_S = torch.zeros_like(h_V, device=device)
             S = 20 * torch.ones((B_decoder, L), dtype=torch.int64, device=device)
             h_V_stack = [h_V] + [
-                torch.zeros_like(h_V, device=device)
-                for _ in range(len(self.decoder_layers))
+                torch.zeros_like(h_V, device=device) for _ in range(len(self.decoder_layers))
             ]
 
             h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_S), h_E, E_idx)
@@ -265,13 +244,9 @@ class ProteinMPNN(torch.nn.Module):
                 t = decoding_order[:, t_]  # [B]
                 chain_mask_t = torch.gather(chain_mask, 1, t[:, None])[:, 0]  # [B]
                 mask_t = torch.gather(mask, 1, t[:, None])[:, 0]  # [B]
-                bias_t = torch.gather(bias, 1, t[:, None, None].repeat(1, 1, 21))[
-                    :, 0, :
-                ]  # [B,21]
+                bias_t = torch.gather(bias, 1, t[:, None, None].repeat(1, 1, 21))[:, 0, :]  # [B,21]
 
-                E_idx_t = torch.gather(
-                    E_idx, 1, t[:, None, None].repeat(1, 1, E_idx.shape[-1])
-                )
+                E_idx_t = torch.gather(E_idx, 1, t[:, None, None].repeat(1, 1, E_idx.shape[-1]))
                 h_E_t = torch.gather(
                     h_E,
                     1,
@@ -289,9 +264,7 @@ class ProteinMPNN(torch.nn.Module):
                 mask_bw_t = torch.gather(
                     mask_bw,
                     1,
-                    t[:, None, None, None].repeat(
-                        1, 1, mask_bw.shape[-2], mask_bw.shape[-1]
-                    ),
+                    t[:, None, None, None].repeat(1, 1, mask_bw.shape[-2], mask_bw.shape[-1]),
                 )
 
                 for l, layer in enumerate(self.decoder_layers):
@@ -367,11 +340,7 @@ class ProteinMPNN(torch.nn.Module):
 
             decoding_order = torch.tensor(
                 list(itertools.chain(*new_decoding_order)), device=device
-            )[
-                None,
-            ].repeat(
-                B, 1
-            )
+            )[None,].repeat(B, 1)
 
             permutation_matrix_reverse = torch.nn.functional.one_hot(
                 decoding_order, num_classes=L
@@ -398,17 +367,12 @@ class ProteinMPNN(torch.nn.Module):
             mask = mask.repeat(B_decoder, 1)
             bias = bias.repeat(B_decoder, 1, 1)
 
-            all_probs = torch.zeros(
-                (B_decoder, L, 20), device=device, dtype=torch.float32
-            )
-            all_log_probs = torch.zeros(
-                (B_decoder, L, 21), device=device, dtype=torch.float32
-            )
+            all_probs = torch.zeros((B_decoder, L, 20), device=device, dtype=torch.float32)
+            all_log_probs = torch.zeros((B_decoder, L, 21), device=device, dtype=torch.float32)
             h_S = torch.zeros_like(h_V, device=device)
             S = 20 * torch.ones((B_decoder, L), dtype=torch.int64, device=device)
             h_V_stack = [h_V] + [
-                torch.zeros_like(h_V, device=device)
-                for _ in range(len(self.decoder_layers))
+                torch.zeros_like(h_V, device=device) for _ in range(len(self.decoder_layers))
             ]
 
             h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_S), h_E, E_idx)
@@ -427,25 +391,17 @@ class ProteinMPNN(torch.nn.Module):
                     h_ES_t = cat_neighbors_nodes(h_S, h_E_t, E_idx_t)
                     h_EXV_encoder_t = h_EXV_encoder_fw[:, t : t + 1]
                     for l, layer in enumerate(self.decoder_layers):
-                        h_ESV_decoder_t = cat_neighbors_nodes(
-                            h_V_stack[l], h_ES_t, E_idx_t
-                        )
+                        h_ESV_decoder_t = cat_neighbors_nodes(h_V_stack[l], h_ES_t, E_idx_t)
                         h_V_t = h_V_stack[l][:, t : t + 1]
-                        h_ESV_t = (
-                            mask_bw[:, t : t + 1] * h_ESV_decoder_t + h_EXV_encoder_t
-                        )
+                        h_ESV_t = mask_bw[:, t : t + 1] * h_ESV_decoder_t + h_EXV_encoder_t
                         h_V_stack[l + 1][:, t : t + 1, :] = layer(
                             h_V_t, h_ESV_t, mask_V=mask_t[:, None]
                         )
 
                     h_V_t = h_V_stack[-1][:, t]
                     logits = self.W_out(h_V_t)  # [B,21]
-                    log_probs = torch.nn.functional.log_softmax(
-                        logits, dim=-1
-                    )  # [B,21]
-                    all_log_probs[:, t] = (
-                        chain_mask_t[:, None] * log_probs
-                    ).float()  # [B,21]
+                    log_probs = torch.nn.functional.log_softmax(logits, dim=-1)  # [B,21]
+                    all_log_probs[:, t] = (chain_mask_t[:, None] * log_probs).float()  # [B,21]
                     total_logits += symmetry_weights[t] * logits
 
                 probs = torch.nn.functional.softmax(
@@ -457,9 +413,7 @@ class ProteinMPNN(torch.nn.Module):
                 S_t = torch.multinomial(probs_sample, 1)[:, 0]  # [B]
                 for t in t_list:
                     chain_mask_t = chain_mask[:, t]  # [B]
-                    all_probs[:, t] = (
-                        chain_mask_t[:, None] * probs_sample
-                    ).float()  # [B,20]
+                    all_probs[:, t] = (chain_mask_t[:, None] * probs_sample).float()  # [B,20]
                     S_true_t = S_true[:, t]  # [B]
                     S_t = (S_t * chain_mask_t + S_true_t * (1.0 - chain_mask_t)).long()
                     h_S[:, t] = self.W_s(S_t)
@@ -474,8 +428,7 @@ class ProteinMPNN(torch.nn.Module):
         return output_dict
 
     def single_aa_score(self, feature_dict, use_sequence: bool):
-        """
-        feature_dict - input features
+        """feature_dict - input features
         use_sequence - False using backbone info only
         """
         B_decoder = feature_dict["batch_size"]
@@ -596,11 +549,7 @@ class ProteinMPNN(torch.nn.Module):
 
             decoding_order = torch.tensor(
                 list(itertools.chain(*new_decoding_order)), device=device
-            )[
-                None,
-            ].repeat(
-                B, 1
-            )
+            )[None,].repeat(B, 1)
 
             permutation_matrix_reverse = torch.nn.functional.one_hot(
                 decoding_order, num_classes=L
@@ -670,7 +619,7 @@ class ProteinFeaturesLigand(torch.nn.Module):
         use_side_chains=False,
     ):
         """Extract protein features"""
-        super(ProteinFeaturesLigand, self).__init__()
+        super().__init__()
 
         self.use_side_chains = use_side_chains
 
@@ -686,9 +635,7 @@ class ProteinFeaturesLigand(torch.nn.Module):
         self.edge_embedding = torch.nn.Linear(edge_in, edge_features, bias=False)
         self.norm_edges = torch.nn.LayerNorm(edge_features)
 
-        self.node_project_down = torch.nn.Linear(
-            5 * num_rbf + 64 + 4, node_features, bias=True
-        )
+        self.node_project_down = torch.nn.Linear(5 * num_rbf + 64 + 4, node_features, bias=True)
         self.norm_nodes = torch.nn.LayerNorm(node_features)
 
         self.type_linear = torch.nn.Linear(147, 64)
@@ -1118,13 +1065,9 @@ class ProteinFeaturesLigand(torch.nn.Module):
         u2 = v2 - e1 * e1_v2_dot
         e2 = torch.nn.functional.normalize(u2, dim=-1)
         e3 = torch.cross(e1, e2, dim=-1)
-        R_residue = torch.cat(
-            (e1[:, :, :, None], e2[:, :, :, None], e3[:, :, :, None]), dim=-1
-        )
+        R_residue = torch.cat((e1[:, :, :, None], e2[:, :, :, None], e3[:, :, :, None]), dim=-1)
 
-        local_vectors = torch.einsum(
-            "blqp, blyq -> blyp", R_residue, Y - B[:, :, None, :]
-        )
+        local_vectors = torch.einsum("blqp, blyq -> blyp", R_residue, Y - B[:, :, None, :])
 
         rxy = torch.sqrt(local_vectors[..., 0] ** 2 + local_vectors[..., 1] ** 2 + 1e-8)
         f1 = local_vectors[..., 0] / rxy
@@ -1161,9 +1104,7 @@ class ProteinFeaturesLigand(torch.nn.Module):
         D_A_B = torch.sqrt(
             torch.sum((A[:, :, None, :] - B[:, None, :, :]) ** 2, -1) + 1e-6
         )  # [B, L, L]
-        D_A_B_neighbors = gather_edges(D_A_B[:, :, :, None], E_idx)[
-            :, :, :, 0
-        ]  # [B,L,K]
+        D_A_B_neighbors = gather_edges(D_A_B[:, :, :, None], E_idx)[:, :, :, 0]  # [B,L,K]
         RBF_A_B = self._rbf(D_A_B_neighbors)
         return RBF_A_B
 
@@ -1243,9 +1184,7 @@ class ProteinFeaturesLigand(torch.nn.Module):
             R_m = gather_nodes(xyz_37_m[:, :, 5:], E_idx_sub)
 
             X_sidechain = xyz_37[:, :, 5:, :].view(B, L, -1)
-            R = gather_nodes(X_sidechain, E_idx_sub).view(
-                B, L, E_idx_sub.shape[2], -1, 3
-            )
+            R = gather_nodes(X_sidechain, E_idx_sub).view(B, L, E_idx_sub.shape[2], -1, 3)
             R_t = self.side_chain_atom_types[None, None, None, :].repeat(
                 B, L, E_idx_sub.shape[2], 1
             )
@@ -1279,22 +1218,16 @@ class ProteinFeaturesLigand(torch.nn.Module):
         Y_t_p_1hot_ = torch.nn.functional.one_hot(Y_t_p, 8)  # [B, L, M, 8]
         Y_t_1hot_ = torch.nn.functional.one_hot(Y_t, 120)  # [B, L, M, 120]
 
-        Y_t_1hot_ = torch.cat(
-            [Y_t_1hot_, Y_t_g_1hot_, Y_t_p_1hot_], -1
-        )  # [B, L, M, 147]
+        Y_t_1hot_ = torch.cat([Y_t_1hot_, Y_t_g_1hot_, Y_t_p_1hot_], -1)  # [B, L, M, 147]
         Y_t_1hot = self.type_linear(Y_t_1hot_.float())
 
         D_N_Y = self._rbf(
             torch.sqrt(torch.sum((N[:, :, None, :] - Y) ** 2, -1) + 1e-6)
         )  # [B, L, M, num_bins]
-        D_Ca_Y = self._rbf(
-            torch.sqrt(torch.sum((Ca[:, :, None, :] - Y) ** 2, -1) + 1e-6)
-        )
+        D_Ca_Y = self._rbf(torch.sqrt(torch.sum((Ca[:, :, None, :] - Y) ** 2, -1) + 1e-6))
         D_C_Y = self._rbf(torch.sqrt(torch.sum((C[:, :, None, :] - Y) ** 2, -1) + 1e-6))
         D_O_Y = self._rbf(torch.sqrt(torch.sum((O[:, :, None, :] - Y) ** 2, -1) + 1e-6))
-        D_Cb_Y = self._rbf(
-            torch.sqrt(torch.sum((Cb[:, :, None, :] - Y) ** 2, -1) + 1e-6)
-        )
+        D_Cb_Y = self._rbf(torch.sqrt(torch.sum((Cb[:, :, None, :] - Y) ** 2, -1) + 1e-6))
 
         f_angles = self._make_angle_features(N, Ca, C, Y)  # [B, L, M, 4]
 
@@ -1305,9 +1238,7 @@ class ProteinFeaturesLigand(torch.nn.Module):
         V = self.norm_nodes(V)
 
         Y_edges = self._rbf(
-            torch.sqrt(
-                torch.sum((Y[:, :, :, None, :] - Y[:, :, None, :, :]) ** 2, -1) + 1e-6
-            )
+            torch.sqrt(torch.sum((Y[:, :, :, None, :] - Y[:, :, None, :, :]) ** 2, -1) + 1e-6)
         )  # [B, L, M, M, num_bins]
 
         Y_edges = self.y_edges(Y_edges)
@@ -1330,7 +1261,7 @@ class ProteinFeatures(torch.nn.Module):
         augment_eps=0.0,
     ):
         """Extract protein features"""
-        super(ProteinFeatures, self).__init__()
+        super().__init__()
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
@@ -1368,9 +1299,7 @@ class ProteinFeatures(torch.nn.Module):
         D_A_B = torch.sqrt(
             torch.sum((A[:, :, None, :] - B[:, None, :, :]) ** 2, -1) + 1e-6
         )  # [B, L, L]
-        D_A_B_neighbors = gather_edges(D_A_B[:, :, :, None], E_idx)[
-            :, :, :, 0
-        ]  # [B,L,K]
+        D_A_B_neighbors = gather_edges(D_A_B[:, :, :, None], E_idx)[:, :, :, 0]  # [B,L,K]
         RBF_A_B = self._rbf(D_A_B_neighbors)
         return RBF_A_B
 
@@ -1449,7 +1378,7 @@ class ProteinFeaturesMembrane(torch.nn.Module):
         num_classes=3,
     ):
         """Extract protein features"""
-        super(ProteinFeaturesMembrane, self).__init__()
+        super().__init__()
         self.edge_features = edge_features
         self.node_features = node_features
         self.top_k = top_k
@@ -1463,9 +1392,7 @@ class ProteinFeaturesMembrane(torch.nn.Module):
         self.edge_embedding = torch.nn.Linear(edge_in, edge_features, bias=False)
         self.norm_edges = torch.nn.LayerNorm(edge_features)
 
-        self.node_embedding = torch.nn.Linear(
-            self.num_classes, node_features, bias=False
-        )
+        self.node_embedding = torch.nn.Linear(self.num_classes, node_features, bias=False)
         self.norm_nodes = torch.nn.LayerNorm(node_features)
 
     def _dist(self, X, mask, eps=1e-6):
@@ -1493,9 +1420,7 @@ class ProteinFeaturesMembrane(torch.nn.Module):
         D_A_B = torch.sqrt(
             torch.sum((A[:, :, None, :] - B[:, None, :, :]) ** 2, -1) + 1e-6
         )  # [B, L, L]
-        D_A_B_neighbors = gather_edges(D_A_B[:, :, :, None], E_idx)[
-            :, :, :, 0
-        ]  # [B,L,K]
+        D_A_B_neighbors = gather_edges(D_A_B[:, :, :, None], E_idx)[:, :, :, 0]  # [B,L,K]
         RBF_A_B = self._rbf(D_A_B_neighbors)
         return RBF_A_B
 
@@ -1560,9 +1485,7 @@ class ProteinFeaturesMembrane(torch.nn.Module):
         E = self.edge_embedding(E)
         E = self.norm_edges(E)
 
-        C_1hot = torch.nn.functional.one_hot(
-            membrane_per_residue_labels, self.num_classes
-        ).float()
+        C_1hot = torch.nn.functional.one_hot(membrane_per_residue_labels, self.num_classes).float()
         V = self.node_embedding(C_1hot)
         V = self.norm_nodes(V)
 
@@ -1571,7 +1494,7 @@ class ProteinFeaturesMembrane(torch.nn.Module):
 
 class DecLayerJ(torch.nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(DecLayerJ, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -1588,11 +1511,8 @@ class DecLayerJ(torch.nn.Module):
 
     def forward(self, h_V, h_E, mask_V=None, mask_attend=None):
         """Parallel computation of full transformer layer"""
-
         # Concatenate h_V_i to h_E_ij
-        h_V_expand = h_V.unsqueeze(-2).expand(
-            -1, -1, -1, h_E.size(-2), -1
-        )  # the only difference
+        h_V_expand = h_V.unsqueeze(-2).expand(-1, -1, -1, h_E.size(-2), -1)  # the only difference
         h_EV = torch.cat([h_V_expand, h_E], -1)
 
         h_message = self.W3(self.act(self.W2(self.act(self.W1(h_EV)))))
@@ -1614,7 +1534,7 @@ class DecLayerJ(torch.nn.Module):
 
 class PositionWiseFeedForward(torch.nn.Module):
     def __init__(self, num_hidden, num_ff):
-        super(PositionWiseFeedForward, self).__init__()
+        super().__init__()
         self.W_in = torch.nn.Linear(num_hidden, num_ff, bias=True)
         self.W_out = torch.nn.Linear(num_ff, num_hidden, bias=True)
         self.act = torch.nn.GELU()
@@ -1627,7 +1547,7 @@ class PositionWiseFeedForward(torch.nn.Module):
 
 class PositionalEncodings(torch.nn.Module):
     def __init__(self, num_embeddings, max_relative_feature=32):
-        super(PositionalEncodings, self).__init__()
+        super().__init__()
         self.num_embeddings = num_embeddings
         self.max_relative_feature = max_relative_feature
         self.linear = torch.nn.Linear(2 * max_relative_feature + 1 + 1, num_embeddings)
@@ -1643,7 +1563,7 @@ class PositionalEncodings(torch.nn.Module):
 
 class DecLayer(torch.nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(DecLayer, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -1660,7 +1580,6 @@ class DecLayer(torch.nn.Module):
 
     def forward(self, h_V, h_E, mask_V=None, mask_attend=None):
         """Parallel computation of full transformer layer"""
-
         # Concatenate h_V_i to h_E_ij
         h_V_expand = h_V.unsqueeze(-2).expand(-1, -1, h_E.size(-2), -1)
         h_EV = torch.cat([h_V_expand, h_E], -1)
@@ -1684,7 +1603,7 @@ class DecLayer(torch.nn.Module):
 
 class EncLayer(torch.nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
-        super(EncLayer, self).__init__()
+        super().__init__()
         self.num_hidden = num_hidden
         self.num_in = num_in
         self.scale = scale
@@ -1706,7 +1625,6 @@ class EncLayer(torch.nn.Module):
 
     def forward(self, h_V, h_E, E_idx, mask_V=None, mask_attend=None):
         """Parallel computation of full transformer layer"""
-
         h_EV = cat_neighbors_nodes(h_V, h_E, E_idx)
         h_V_expand = h_V.unsqueeze(-2).expand(-1, -1, h_EV.size(-2), -1)
         h_EV = torch.cat([h_V_expand, h_EV], -1)

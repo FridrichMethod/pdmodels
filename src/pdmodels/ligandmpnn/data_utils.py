@@ -227,9 +227,7 @@ def get_score(S: torch.Tensor, log_probs: torch.Tensor, mask: torch.Tensor):
     """
     S_one_hot = torch.nn.functional.one_hot(S, 21)
     loss_per_residue = -(S_one_hot * log_probs).sum(-1)  # [B, L]
-    average_loss = torch.sum(loss_per_residue * mask, dim=-1) / (
-        torch.sum(mask, dim=-1) + 1e-8
-    )
+    average_loss = torch.sum(loss_per_residue * mask, dim=-1) / (torch.sum(mask, dim=-1) + 1e-8)
     return average_loss, loss_per_residue
 
 
@@ -834,10 +832,7 @@ def parse_PDB(
         Y = np.array(other_atoms.getCoords(), dtype=np.float32)
         Y_t = list(other_atoms.getElements())
         Y_t = np.array(
-            [
-                element_dict[y_t.upper()] if y_t.upper() in element_list else 0
-                for y_t in Y_t
-            ],
+            [element_dict[y_t.upper()] if y_t.upper() in element_list else 0 for y_t in Y_t],
             dtype=np.int32,
         )
         Y_m = (Y_t != 1) * (Y_t != 0)
@@ -858,9 +853,7 @@ def parse_PDB(
     output_dict["Y_m"] = torch.tensor(Y_m, device=device, dtype=torch.int32)
 
     output_dict["R_idx"] = torch.tensor(R_idx, device=device, dtype=torch.int32)
-    output_dict["chain_labels"] = torch.tensor(
-        chain_labels, device=device, dtype=torch.int32
-    )
+    output_dict["chain_labels"] = torch.tensor(chain_labels, device=device, dtype=torch.int32)
 
     output_dict["chain_letters"] = CA_chain_ids
 
@@ -905,15 +898,9 @@ def get_nearest_neighbours(CB, mask, Y, Y_t, Y_m, number_of_ligand_atoms):
     Y_t_tmp = torch.gather(Y_t_r, 1, nn_idx)
     Y_m_tmp = torch.gather(Y_m_r, 1, nn_idx)
 
-    Y = torch.zeros(
-        [CB.shape[0], number_of_ligand_atoms, 3], dtype=torch.float32, device=device
-    )
-    Y_t = torch.zeros(
-        [CB.shape[0], number_of_ligand_atoms], dtype=torch.int32, device=device
-    )
-    Y_m = torch.zeros(
-        [CB.shape[0], number_of_ligand_atoms], dtype=torch.int32, device=device
-    )
+    Y = torch.zeros([CB.shape[0], number_of_ligand_atoms, 3], dtype=torch.float32, device=device)
+    Y_t = torch.zeros([CB.shape[0], number_of_ligand_atoms], dtype=torch.int32, device=device)
+    Y_m = torch.zeros([CB.shape[0], number_of_ligand_atoms], dtype=torch.int32, device=device)
 
     num_nn_update = Y_tmp.shape[1]
     Y[:, :num_nn_update] = Y_tmp
@@ -943,9 +930,7 @@ def featurize(
         c = C - CA
         a = torch.cross(b, c, axis=-1)
         CB = -0.58273431 * a + 0.56802827 * b - 0.54067466 * c + CA
-        Y, Y_t, Y_m, D_XY = get_nearest_neighbours(
-            CB, mask, Y, Y_t, Y_m, number_of_ligand_atoms
-        )
+        Y, Y_t, Y_m, D_XY = get_nearest_neighbours(CB, mask, Y, Y_t, Y_m, number_of_ligand_atoms)
         mask_XY = (D_XY < cutoff_for_score) * mask * Y_m[:, 0]
         output_dict["mask_XY"] = mask_XY[None,]
         if "side_chain_mask" in list(input_dict):
@@ -959,9 +944,7 @@ def featurize(
         model_type == "per_residue_label_membrane_mpnn"
         or model_type == "global_label_membrane_mpnn"
     ):
-        output_dict["membrane_per_residue_labels"] = input_dict[
-            "membrane_per_residue_labels"
-        ][
+        output_dict["membrane_per_residue_labels"] = input_dict["membrane_per_residue_labels"][
             None,
         ]
 
