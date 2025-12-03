@@ -448,7 +448,9 @@ def extract_from_af2ig(file_path: str, seqs: str) -> pd.Series:
     chain_num = len(seq_list)
     assert sum(len(seq) for seq in seq_list) == len(plddt)
 
-    chain_index = np.array(reduce(operator.iadd, ([i] * len(seq) for i, seq in enumerate(seq_list)), []))
+    chain_index = np.array(
+        reduce(operator.iadd, ([i] * len(seq) for i, seq in enumerate(seq_list)), [])
+    )
     chain_index_one_hot = np.eye(chain_num, dtype=bool)[chain_index].T
 
     pkl_dict: dict[str, str | float] = {}
