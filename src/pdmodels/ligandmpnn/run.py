@@ -123,9 +123,7 @@ def cli(args) -> None:
 
     if args.bias_AA_per_residue_multi:
         with open(args.bias_AA_per_residue_multi, "r") as fh:
-            bias_AA_per_residue_multi = json.load(
-                fh
-            )  # {"pdb_path" : {"A12": {"G": 1.1}}}
+            bias_AA_per_residue_multi = json.load(fh)  # {"pdb_path" : {"A12": {"G": 1.1}}}
     else:
         if args.bias_AA_per_residue:
             with open(args.bias_AA_per_residue, "r") as fh:
@@ -136,9 +134,7 @@ def cli(args) -> None:
 
     if args.omit_AA_per_residue_multi:
         with open(args.omit_AA_per_residue_multi, "r") as fh:
-            omit_AA_per_residue_multi = json.load(
-                fh
-            )  # {"pdb_path" : {"A12": "PQR", "A13": "QS"}}
+            omit_AA_per_residue_multi = json.load(fh)  # {"pdb_path" : {"A12": "PQR", "A13": "QS"}}
     else:
         if args.omit_AA_per_residue:
             with open(args.omit_AA_per_residue, "r") as fh:
@@ -181,9 +177,7 @@ def cli(args) -> None:
             tmp = str(chain_letters_list[i]) + str(R_idx_item) + icodes[i]
             encoded_residues.append(tmp)
         encoded_residue_dict = dict(zip(encoded_residues, range(len(encoded_residues))))
-        encoded_residue_dict_rev = dict(
-            zip(list(range(len(encoded_residues))), encoded_residues)
-        )
+        encoded_residue_dict_rev = dict(zip(list(range(len(encoded_residues))), encoded_residues))
 
         bias_AA_per_residue = torch.zeros(
             [len(encoded_residues), 21], device=device, dtype=torch.float32
@@ -253,10 +247,7 @@ def cli(args) -> None:
 
         chain_mask = torch.tensor(
             np.array(
-                [
-                    item in chains_to_design_list
-                    for item in protein_dict["chain_letters"]
-                ],
+                [item in chains_to_design_list for item in protein_dict["chain_letters"]],
                 dtype=np.int32,
             ),
             device=device,
@@ -301,8 +292,7 @@ def cli(args) -> None:
         # specify linking weights
         if args.symmetry_weights:
             symmetry_weights = [
-                [float(item) for item in x.split(",")]
-                for x in args.symmetry_weights.split("|")
+                [float(item) for item in x.split(",")] for x in args.symmetry_weights.split("|")
             ]
         else:
             symmetry_weights = [[]]
@@ -402,15 +392,11 @@ def cli(args) -> None:
                 )
                 if args.model_type == "ligand_mpnn":
                     combined_mask = (
-                        feature_dict["mask"]
-                        * feature_dict["mask_XY"]
-                        * feature_dict["chain_mask"]
+                        feature_dict["mask"] * feature_dict["mask_XY"] * feature_dict["chain_mask"]
                     )
                 else:
                     combined_mask = feature_dict["mask"] * feature_dict["chain_mask"]
-                loss_XY, _ = get_score(
-                    output_dict["S"], output_dict["log_probs"], combined_mask
-                )
+                loss_XY, _ = get_score(output_dict["S"], output_dict["log_probs"], combined_mask)
                 # -----
                 S_list.append(output_dict["S"])
                 log_probs_list.append(output_dict["log_probs"])
@@ -429,9 +415,9 @@ def cli(args) -> None:
             rec_mask = feature_dict["mask"][:1] * feature_dict["chain_mask"][:1]
             rec_stack = get_seq_rec(feature_dict["S"][:1], S_stack, rec_mask)
 
-            native_seq = "".join(
-                [restype_int_to_str[AA] for AA in feature_dict["S"][0].cpu().numpy()]
-            )
+            native_seq = "".join([
+                restype_int_to_str[AA] for AA in feature_dict["S"][0].cpu().numpy()
+            ])
             seq_np = np.array(list(native_seq))
             seq_out_str = []
             for mask in protein_dict["mask_c"]:
@@ -488,21 +474,14 @@ def cli(args) -> None:
                         unique=False,
                         precision=4,
                     )
-                    seq = "".join(
-                        [restype_int_to_str[AA] for AA in S_stack[ix].cpu().numpy()]
-                    )
+                    seq = "".join([restype_int_to_str[AA] for AA in S_stack[ix].cpu().numpy()])
 
                     # write new sequences into PDB with backbone coordinates
-                    seq_prody = np.array([restype_1to3[AA] for AA in list(seq)])[
-                        None,
-                    ].repeat(4, 1)
-                    bfactor_prody = (
-                        loss_per_residue_stack[ix].cpu().numpy()[None, :].repeat(4, 1)
-                    )
+                    seq_prody = np.array([restype_1to3[AA] for AA in list(seq)])[None,].repeat(4, 1)
+                    bfactor_prody = loss_per_residue_stack[ix].cpu().numpy()[None, :].repeat(4, 1)
                     backbone.setResnames(seq_prody)
                     backbone.setBetas(
-                        np.exp(-bfactor_prody)
-                        * (bfactor_prody > 0.01).astype(np.float32)
+                        np.exp(-bfactor_prody) * (bfactor_prody > 0.01).astype(np.float32)
                     )
                     if other_atoms:
                         writePDB(
@@ -610,9 +589,7 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--verbose", type=int, default=1, help="Print stuff")
 
-    parser.add_argument(
-        "--pdb_path", type=str, default="", help="Path to the input PDB."
-    )
+    parser.add_argument("--pdb_path", type=str, default="", help="Path to the input PDB.")
     parser.add_argument(
         "--pdb_path_multi",
         type=str,
@@ -708,9 +685,7 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
         type=str,
         help="Path to a folder to output sequences, e.g. /home/out/",
     )
-    parser.add_argument(
-        "--file_ending", type=str, default="", help="adding_string_to_the_end"
-    )
+    parser.add_argument("--file_ending", type=str, default="", help="adding_string_to_the_end")
     parser.add_argument(
         "--zero_indexed",
         type=str,
@@ -741,9 +716,7 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
         default=0.1,
         help="Temperature to sample sequences.",
     )
-    parser.add_argument(
-        "--save_stats", type=int, default=0, help="Save output statistics"
-    )
+    parser.add_argument("--save_stats", type=int, default=0, help="Save output statistics")
 
     parser.add_argument(
         "--ligand_mpnn_use_atom_context",

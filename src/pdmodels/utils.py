@@ -91,9 +91,7 @@ def clean_gpu_cache(func: Callable) -> Callable:
     return wrapper
 
 
-def seqs_list_to_tensor(
-    seqs_list: Sequence[str], device: Device = None
-) -> torch.Tensor:
+def seqs_list_to_tensor(seqs_list: Sequence[str], device: Device = None) -> torch.Tensor:
     """Convert a list of sequences to a tensor of amino acid alphabet encoding."""
     return torch.tensor(
         [[AA_DICT[aa] for aa in seqs.replace(":", "")] for seqs in seqs_list],
@@ -185,9 +183,7 @@ def count_mutations(
         tril_num = diag_num * (diag_num - 1) // 2
 
         lambda_, mu_ = (
-            np.array([diag_num, -diag_sum])
-            * tril_num
-            / (diag_num * tril_sum - tril_num * diag_sum)
+            np.array([diag_num, -diag_sum]) * tril_num / (diag_num * tril_sum - tril_num * diag_sum)
         )
         submat_norm = lambda_ * submat + mu_
 
@@ -220,12 +216,10 @@ def count_mutations(
     if isinstance(seqs_list, str):
         seqs_list = [seqs_list]
     try:
-        seqs_list_idx = np.array(
-            [[AA_DICT[aa] for aa in seqs.replace(":", "")] for seqs in seqs_list]
-        )
-        seqs_template_idx = np.array(
-            [AA_DICT[aa] for aa in seqs_template.replace(":", "")]
-        )
+        seqs_list_idx = np.array([
+            [AA_DICT[aa] for aa in seqs.replace(":", "")] for seqs in seqs_list
+        ])
+        seqs_template_idx = np.array([AA_DICT[aa] for aa in seqs_template.replace(":", "")])
     except KeyError as e:
         raise KeyError(f"Invalid amino acid: {e}") from e
     except ValueError:
@@ -278,11 +272,7 @@ def calculate_rmsd(
     def _sele_type_check(sele: str | tuple[str, str]) -> tuple[str, str]:
         if isinstance(sele, str):
             return sele, sele
-        elif (
-            isinstance(sele, tuple)
-            and len(sele) == 2
-            and all(isinstance(s, str) for s in sele)
-        ):
+        elif isinstance(sele, tuple) and len(sele) == 2 and all(isinstance(s, str) for s in sele):
             return sele
         else:
             raise ValueError(f"Invalid selection: {sele}")
@@ -417,7 +407,7 @@ def get_dms_libary(seqs_wt: str) -> list[tuple[str, str]]:
         if res not in AA_ALPHABET:
             continue
         dms_library.extend(
-            (f"{res}{i+1}{res_mut}", seqs_wt[:i] + res_mut + seqs_wt[i + 1 :])
+            (f"{res}{i + 1}{res_mut}", seqs_wt[:i] + res_mut + seqs_wt[i + 1 :])
             for res_mut in AA_ALPHABET
             if res_mut != res
         )
@@ -433,13 +423,9 @@ def get_top_percentile(
 ) -> pd.DataFrame:
     """Get top percentile of dataframe based on columns."""
     if ascending:
-        df_copy = df[
-            (df[columns].rank(method="dense", pct=True) <= percentile).all(axis=1)
-        ]
+        df_copy = df[(df[columns].rank(method="dense", pct=True) <= percentile).all(axis=1)]
     else:
-        df_copy = df[
-            (df[columns].rank(method="dense", pct=True) >= percentile).all(axis=1)
-        ]
+        df_copy = df[(df[columns].rank(method="dense", pct=True) >= percentile).all(axis=1)]
 
     if ignore_index:
         df = df.reset_index(drop=True)
@@ -465,9 +451,7 @@ def extract_from_af2ig(file_path: str, seqs: str) -> pd.Series:
     chain_index_one_hot = np.eye(chain_num, dtype=bool)[chain_index].T
 
     pkl_dict: dict[str, str | float] = {}
-    pkl_dict["id"] = os.path.splitext(os.path.basename(file_path))[0].removeprefix(
-        "result_"
-    )
+    pkl_dict["id"] = os.path.splitext(os.path.basename(file_path))[0].removeprefix("result_")
     pkl_dict["plddt"] = np.mean(plddt)
     pkl_dict["pae"] = np.mean(predicted_aligned_error)
     pkl_dict["ptm"] = ptm
@@ -492,9 +476,7 @@ def extract_from_af2ig(file_path: str, seqs: str) -> pd.Series:
                 np.sum(predicted_aligned_error[chain_mask_1][:, chain_mask_2])
                 + np.sum(predicted_aligned_error[chain_mask_2][:, chain_mask_1])
             ) / (2 * res_num_1 * res_num_2)
-            pkl_dict[f"pae_interaction_{chain_id_1}_{chain_id_2}"] = (
-                pae_interaction_1_2.item()
-            )
+            pkl_dict[f"pae_interaction_{chain_id_1}_{chain_id_2}"] = pae_interaction_1_2.item()
 
     return pd.Series(pkl_dict)
 
@@ -545,8 +527,6 @@ def extract_from_esmfold(file_path: str) -> pd.Series:
                 torch.sum(predicted_aligned_error[chain_mask_1][:, chain_mask_2])
                 + torch.sum(predicted_aligned_error[chain_mask_2][:, chain_mask_1])
             ) / (2 * res_num_1 * res_num_2)
-            pt_dict[f"pae_interaction_{chain_id_1}_{chain_id_2}"] = (
-                pae_interaction_1_2.item()
-            )
+            pt_dict[f"pae_interaction_{chain_id_1}_{chain_id_2}"] = pae_interaction_1_2.item()
 
     return pd.Series(pt_dict)

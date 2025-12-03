@@ -18,9 +18,7 @@ def register_subparser(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        prog="pdmodels", description="Protein Design Models CLI"
-    )
+    parser = argparse.ArgumentParser(prog="pdmodels", description="Protein Design Models CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Add af2ig
@@ -33,14 +31,10 @@ def main():
     )
 
     # Add esmfold
-    register_subparser(
-        subparsers, "esmfold", esmfold.setup_parser, esmfold.cli, help="ESMFold"
-    )
+    register_subparser(subparsers, "esmfold", esmfold.setup_parser, esmfold.cli, help="ESMFold")
 
     # Add mpnn
-    register_subparser(
-        subparsers, "mpnn", mpnn.setup_parser, mpnn.cli, help="MPNN sampling"
-    )
+    register_subparser(subparsers, "mpnn", mpnn.setup_parser, mpnn.cli, help="MPNN sampling")
 
     args = parser.parse_args()
     args.func(args)

@@ -11,7 +11,7 @@ from pdmodels.revor import ReVor
 
 __version__ = "0.1.2"
 
-__all__ = ["Af2Ig", "ESMFold", "ESM2", "ESMIF", "MPNN", "ReVor"]
+__all__ = ["ESM2", "ESMIF", "MPNN", "Af2Ig", "ESMFold", "ReVor"]
 
 # Set PyTorch backend options
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -28,7 +28,5 @@ if conda_prefix := os.environ.get("CONDA_PREFIX"):
     libdir = os.path.join(conda_prefix, "lib")
     paths = os.environ.get("LD_LIBRARY_PATH", "").split(":")
     if libdir not in paths:
-        os.environ["LD_LIBRARY_PATH"] = (
-            f"{libdir}:{os.environ.get('LD_LIBRARY_PATH', '')}"
-        )
+        os.environ["LD_LIBRARY_PATH"] = f"{libdir}:{os.environ.get('LD_LIBRARY_PATH', '')}"
         os.environ["LIBRARY_PATH"] = f"{libdir}:{os.environ.get('LIBRARY_PATH', '')}"

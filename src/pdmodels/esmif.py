@@ -1,6 +1,6 @@
 import os
 from collections.abc import Sequence
-from functools import lru_cache
+from functools import cache, lru_cache
 
 import esm
 import numpy as np
@@ -21,7 +21,6 @@ from pdmodels.utils import ScoreDict, clean_gpu_cache, seqs_list_to_tensor
 
 
 class CoordBatchConverterNew(CoordBatchConverter):
-
     def __call__(self, raw_batch: Sequence[tuple], device=None):
         """Bug fix for the CoordBatchConverter class."""
         self.alphabet.cls_idx = self.alphabet.get_idx("<cath>")
@@ -35,9 +34,7 @@ class CoordBatchConverterNew(CoordBatchConverter):
                 seq = "X" * len(coords)
             batch.append(((coords, confidence), seq))
 
-        coords_and_confidence, strs, tokens = super(CoordBatchConverter, self).__call__(
-            batch
-        )
+        coords_and_confidence, strs, tokens = super(CoordBatchConverter, self).__call__(batch)
 
         # pad beginning and end of each protein due to legacy reasons
         coords = [
@@ -47,8 +44,7 @@ class CoordBatchConverterNew(CoordBatchConverter):
             for cd, _ in coords_and_confidence
         ]
         confidence = [
-            F.pad(torch.tensor(cf), (1, 1), value=-1.0)
-            for _, cf in coords_and_confidence
+            F.pad(torch.tensor(cf), (1, 1), value=-1.0) for _, cf in coords_and_confidence
         ]
         coords = self.collate_dense_tensors(coords, pad_v=np.nan)
         confidence = self.collate_dense_tensors(confidence, pad_v=-1.0)
@@ -100,15 +96,13 @@ def _concatenate_seqs(
             target_aa_indices.append(np.arange(i, i + len(seq)))
             i += len(seq)
 
-    target_seqs_concatenated = ("<mask>" * (padding_length - 1) + "<cath>").join(
-        target_seqs_list
-    )
+    target_seqs_concatenated = ("<mask>" * (padding_length - 1) + "<cath>").join(target_seqs_list)
     target_aa_concatenated = np.concatenate(target_aa_indices, axis=0)
 
     return target_seqs_concatenated, target_aa_concatenated
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_native_coords_and_seqs(
     pdb_path: str,
 ) -> tuple[dict[str, np.ndarray], dict[str, str]]:
@@ -206,9 +200,7 @@ class ESMIF(nn.Module):
         assert "".join(native_seqs.keys()) == CHAIN_ALPHABET[: len(native_seqs)]
         if seqs_list is None:
             seqs_list = [":".join(native_seqs.values())]
-        seq_dict_list = [
-            dict(zip(native_seqs.keys(), seqs.split(":"))) for seqs in seqs_list
-        ]
+        seq_dict_list = [dict(zip(native_seqs.keys(), seqs.split(":"))) for seqs in seqs_list]
         aa_tokens = torch.tensor(self.alphabet.encode(AA_ALPHABET))
 
         all_coords = _concatenate_coords(
@@ -232,17 +224,15 @@ class ESMIF(nn.Module):
 
         batch_converter = CoordBatchConverterNew(self.alphabet)
         batch = [(all_coords, None, all_seqs) for all_seqs in all_seqs_list]
-        coords, confidence, _, tokens, padding_mask = batch_converter(
-            batch, device=self.device
-        )
+        coords, confidence, _, tokens, padding_mask = batch_converter(batch, device=self.device)
 
         # shift tokens to predict next token's logits
         prev_output_tokens = tokens[:, :-1]
         B, L = prev_output_tokens.shape
 
-        logits: torch.Tensor = self.model(
-            coords, padding_mask, confidence, prev_output_tokens
-        )[0].cpu()
+        logits: torch.Tensor = self.model(coords, padding_mask, confidence, prev_output_tokens)[
+            0
+        ].cpu()
 
         entropy = -(
             logits[:, aa_tokens]
@@ -266,7 +256,7 @@ class ESMIF(nn.Module):
                     k += len(chain)
                     print(f"chain {CHAIN_ALPHABET[i]}")
                     for j, (aa, loss_val) in enumerate(zip(chain, loss_chunk)):
-                        print(f"{aa}{j+1}: {loss_val.item()}")
+                        print(f"{aa}{j + 1}: {loss_val.item()}")
                 print(f"perplexity: {perplexity[l].item()}")
                 print()
 
@@ -327,12 +317,10 @@ class ESMIF(nn.Module):
         pad_idx = self.alphabet.get_idx("<pad>")
 
         # Mask out redesigned residues of the target sequence
-        target_seq_tokens = torch.tensor(
-            self.alphabet.encode(native_seqs[target_chain_id])
-        )
-        redesigned_residues_positions = torch.tensor(
-            [int(i) - 1 for i in redesigned_residues.split()]
-        )
+        target_seq_tokens = torch.tensor(self.alphabet.encode(native_seqs[target_chain_id]))
+        redesigned_residues_positions = torch.tensor([
+            int(i) - 1 for i in redesigned_residues.split()
+        ])
         target_seq_tokens[redesigned_residues_positions] = mask_idx
 
         B = batch_size
@@ -358,9 +346,7 @@ class ESMIF(nn.Module):
 
         batch_converter = CoordBatchConverterNew(self.alphabet)
         batch = [(all_coords, None, None) for _ in range(B)]
-        batch_coords, confidence, _, _, padding_mask = batch_converter(
-            batch, device=self.device
-        )
+        batch_coords, confidence, _, _, padding_mask = batch_converter(batch, device=self.device)
 
         # Save incremental states for faster sampling
         incremental_state = {}
@@ -394,7 +380,7 @@ class ESMIF(nn.Module):
                     sampled_target_seq = "".join(
                         self.alphabet.get_tok(aa) for aa in sampled_target_seq_tokens[i]
                     )
-                    f.write(f">id={i+index_offset}\n")
+                    f.write(f">id={i + index_offset}\n")
                     f.write(f"{sampled_target_seq}\n")
         else:
             with open(output_path, "w", encoding="utf-8") as f:

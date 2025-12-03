@@ -84,9 +84,7 @@ def plot_dag(
 
     pos = layout(subdag, **layout_kwargs)
     node_color = [NODE_COLORS[data["role"]] for _, data in subdag.nodes(data=True)]
-    node_alpha_raw = np.array(
-        [data["perplexity"] for _, data in subdag.nodes(data=True)]
-    )
+    node_alpha_raw = np.array([data["perplexity"] for _, data in subdag.nodes(data=True)])
     min_alpha = np.min(node_alpha_raw)
     max_alpha = np.max(node_alpha_raw)
     if min_alpha == max_alpha:
@@ -109,9 +107,7 @@ def plot_dag(
             node_labels[node] = data["title"]
         elif data["role"] == "end":
             node_labels[node] = f"{data['distance']} mutations"
-    nx.draw_networkx_labels(
-        subdag, pos, labels=node_labels, font_size=8, font_weight="bold"
-    )
+    nx.draw_networkx_labels(subdag, pos, labels=node_labels, font_size=8, font_weight="bold")
     edge_labels = nx.get_edge_attributes(subdag, "weight")
     nx.draw_networkx_edge_labels(subdag, pos, edge_labels=edge_labels, font_size=8)
 
@@ -135,9 +131,7 @@ def plot_dag(
 
 def get_results(dag: nx.DiGraph) -> pd.DataFrame:
     """Get the results of a DAG."""
-    results_dict = {
-        node: data for node, data in dag.nodes(data=True) if data["role"] == "end"
-    }
+    results_dict = {node: data for node, data in dag.nodes(data=True) if data["role"] == "end"}
     df = pd.DataFrame.from_dict(results_dict, orient="index")
     df = df.reset_index().rename(columns={"index": "sequence"})
 
@@ -207,9 +201,7 @@ class ReVor:
         except Exception as e:
             if temp_path is not None:
                 os.remove(temp_path)
-            raise RuntimeError(
-                f"Failed to save checkpoint to {checkpoint_path}: {e}"
-            ) from e
+            raise RuntimeError(f"Failed to save checkpoint to {checkpoint_path}: {e}") from e
 
     def _load_checkpoint(self, checkpoint_path: str) -> None:
         """Load the checkpoint of the ReVor model."""
@@ -225,8 +217,7 @@ class ReVor:
 
         score_dict_dict = self._apply_score_funcs(seqs_list)
         perplexity_dict = {
-            name: score_dict["perplexity"]
-            for name, score_dict in score_dict_dict.items()
+            name: score_dict["perplexity"] for name, score_dict in score_dict_dict.items()
         }
         score_dicts = list(score_dict_dict.values())
         output_dict = average_score_dicts(score_dicts)
@@ -252,9 +243,7 @@ class ReVor:
 
     def _apply_score_funcs(self, seqs_list: list[str]) -> dict[str, ScoreDict]:
         """Compute the scores for a batch of sequences using the provided score functions."""
-        return {
-            name: score_func(seqs_list) for name, score_func in self.score_funcs.items()
-        }
+        return {name: score_func(seqs_list) for name, score_func in self.score_funcs.items()}
 
     def _iterate(
         self,
@@ -327,9 +316,7 @@ class ReVor:
         sample_mask_filtered = sample_mask[terminate_mask]  # (B', N, L)
         new_aa_tensor = torch.where(
             sample_mask_filtered, self.aa_wt, aa_tensor_filtered.unsqueeze(1)
-        ).view(
-            seqs_num_filtered * num_samples, -1
-        )  # (B' * N, L)
+        ).view(seqs_num_filtered * num_samples, -1)  # (B' * N, L)
 
         # Update the graph with the reverted sequences
         new_seqs_list = tensor_to_seqs_list(new_aa_tensor, self.chain_breaks)

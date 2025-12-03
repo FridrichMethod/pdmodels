@@ -15,9 +15,7 @@ class ESM2(nn.Module):
 
     def __init__(
         self,
-        model_name: Literal[
-            "facebook/esm2_t36_3B_UR50D", "facebook/esm2_t33_650M_UR50D"
-        ],
+        model_name: Literal["facebook/esm2_t36_3B_UR50D", "facebook/esm2_t33_650M_UR50D"],
         device: Device = None,
     ) -> None:
         """Initialize the ESM2 model."""
@@ -97,9 +95,7 @@ class ESM2(nn.Module):
         # concatenate all sequences
         all_seqs = self.tokenizer(
             [padding.join(seq_list) for seq_list in seq_list_list], return_tensors="pt"
-        )[
-            "input_ids"
-        ]  # (B, L')
+        )["input_ids"]  # (B, L')
         all_masks = torch.isin(all_seqs, aa_tokens)  # (B, L')
         seq_len = torch.sum(all_masks[0]).item()
 
@@ -117,9 +113,9 @@ class ESM2(nn.Module):
             logits[all_indices][:, aa_tokens].view(-1, seq_len, 20).log_softmax(dim=-1)
         )  # (B, L, 20)
 
-        target = torch.tensor(
-            [[AA_DICT[aa] for aa in "".join(seq_list)] for seq_list in seq_list_list]
-        )  # (B, L)
+        target = torch.tensor([
+            [AA_DICT[aa] for aa in "".join(seq_list)] for seq_list in seq_list_list
+        ])  # (B, L)
         loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
         perplexity = torch.exp(loss.mean(dim=-1))  # (B,)
 
@@ -133,7 +129,7 @@ class ESM2(nn.Module):
                     k += len(chain)
                     print(f"chain {CHAIN_ALPHABET[i]}")
                     for j, (aa, loss_val) in enumerate(zip(chain, loss_chunk)):
-                        print(f"{aa}{j+1}: {loss_val.item()}")
+                        print(f"{aa}{j + 1}: {loss_val.item()}")
                 print(f"perplexity: {perplexity[l].item()}")
                 print()
 

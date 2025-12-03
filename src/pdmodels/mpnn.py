@@ -64,9 +64,7 @@ class ProteinMPNNBatch(ProteinMPNN):
 
         return decoding_order
 
-    def _process_features(
-        self, feature_dict: MPNNFeatureDict
-    ) -> dict[str, torch.Tensor]:
+    def _process_features(self, feature_dict: MPNNFeatureDict) -> dict[str, torch.Tensor]:
         """Prepare tensors for the encoder and decoder."""
         B_decoder = feature_dict["batch_size"]
         S_true = feature_dict["S"]  # (B, L)
@@ -158,9 +156,7 @@ class ProteinMPNNBatch(ProteinMPNN):
 
         # aggregate symmetry residues together and update decoding order
         if symmetry_list_of_lists:
-            decoding_order = self._symmetric_decoding_order(
-                decoding_order, symmetry_list_of_lists
-            )
+            decoding_order = self._symmetric_decoding_order(decoding_order, symmetry_list_of_lists)
         processed_features["decoding_order"] = decoding_order
 
         logits = self.decode(processed_features)
@@ -384,12 +380,8 @@ class MPNN(nn.Module):
             atom_coords = protein_dict["Y"].cpu().numpy()
             atom_types = protein_dict["Y_t"].cpu().numpy()
             print(f"The number of ligand atoms parsed is equal to: {lig_atom_num}")
-            for atom_type, atom_coord, atom_mask in zip(
-                atom_types, atom_coords, atom_masks
-            ):
-                print(
-                    f"Type: {element_dict_rev[atom_type]}, Coords {atom_coord}, Mask {atom_mask}"
-                )
+            for atom_type, atom_coord, atom_mask in zip(atom_types, atom_coords, atom_masks):
+                print(f"Type: {element_dict_rev[atom_type]}, Coords {atom_coord}, Mask {atom_mask}")
         else:
             print("No ligand atoms parsed")
 
@@ -490,9 +482,7 @@ class MPNN(nn.Module):
         else:
             seqs_num = 1
             feature_dict["batch_size"] = repeat
-            target = (
-                feature_dict["S"].cpu().long()
-            )  # use the native sequence as the target
+            target = feature_dict["S"].cpu().long()  # use the native sequence as the target
 
         # sample random decoding order
         feature_dict["randn"] = torch.randn(
@@ -508,9 +498,7 @@ class MPNN(nn.Module):
             f"{chain_letter}{R_id}": idx
             for idx, (chain_letter, R_id) in enumerate(zip(chain_letters, R_idx))
         }
-        symmetry_list_of_lists = self._parse_symmetry_residues(
-            symmetry_residues, res_to_idx
-        )
+        symmetry_list_of_lists = self._parse_symmetry_residues(symmetry_residues, res_to_idx)
         feature_dict["symmetry_residues"] = symmetry_list_of_lists
 
         if autoregressive_score and use_sequence:
@@ -520,9 +508,7 @@ class MPNN(nn.Module):
         logits = score_dict["logits"].cpu()
 
         entropy = (
-            -(logits[:, :, :20].log_softmax(dim=-1))
-            .view(repeat, seqs_num, -1, 20)
-            .mean(dim=0)
+            -(logits[:, :, :20].log_softmax(dim=-1)).view(repeat, seqs_num, -1, 20).mean(dim=0)
         )  # (B, L, 20)
         loss = torch.gather(entropy, 2, target.unsqueeze(2)).squeeze(2)  # (B, L)
         perplexity = torch.exp(loss.mean(dim=-1))  # (B,)

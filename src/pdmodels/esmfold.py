@@ -51,9 +51,7 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
             num_recycles=num_recycles,
         )
 
-        output["atom37_atom_exists"] = output[
-            "atom37_atom_exists"
-        ] * linker_mask.unsqueeze(2)
+        output["atom37_atom_exists"] = output["atom37_atom_exists"] * linker_mask.unsqueeze(2)
 
         output["mean_plddt"] = (output["plddt"] * output["atom37_atom_exists"]).sum(
             dim=(1, 2)
@@ -166,9 +164,7 @@ class ESMFold(nn.Module):
             chain_linker=chain_linker,
         )
 
-    def save(
-        self, output: dict[str, torch.Tensor], output_dir: str, title: str
-    ) -> None:
+    def save(self, output: dict[str, torch.Tensor], output_dir: str, title: str) -> None:
         """Save the predicted 3D structure of the protein to a file.
 
         Args:

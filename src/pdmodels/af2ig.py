@@ -52,7 +52,7 @@ def run_msa_tool(
         precomputed_msa = parsers.truncate_stockholm_msa(msa_path, max_sto_sequences)
         result = {"sto": precomputed_msa}
     else:
-        with open(msa_path, "r") as f:
+        with open(msa_path) as f:
             result = {msa_format: f.read()}
     return result
 
@@ -87,17 +87,13 @@ def _make_msa_features_from_files(
         max_sto_sequences=mgnify_max_hits,
     )
     mgnify_msa = parsers.parse_stockholm(jackhmmer_mgnify_result["sto"])
-    if os.path.exists(
-        hhblits_bfd_uniref_path := os.path.join(msa_dir, "bfd_uniref_hits.a3m")
-    ):
+    if os.path.exists(hhblits_bfd_uniref_path := os.path.join(msa_dir, "bfd_uniref_hits.a3m")):
         hhblits_bfd_uniref_result = run_msa_tool(
             msa_path=hhblits_bfd_uniref_path,
             msa_format="a3m",
         )
         bfd_msa = parsers.parse_a3m(hhblits_bfd_uniref_result["a3m"])
-    elif os.path.exists(
-        jackhmmer_small_bfd_path := os.path.join(msa_dir, "small_bfd_hits.sto")
-    ):
+    elif os.path.exists(jackhmmer_small_bfd_path := os.path.join(msa_dir, "small_bfd_hits.sto")):
         jackhmmer_small_bfd_result = run_msa_tool(
             msa_path=jackhmmer_small_bfd_path,
             msa_format="sto",
@@ -106,9 +102,7 @@ def _make_msa_features_from_files(
     else:
         raise ValueError("Could not find BFD MSA.")
 
-    msa_features_for_all = pipeline.make_msa_features(
-        (uniref90_msa, bfd_msa, mgnify_msa)
-    )
+    msa_features_for_all = pipeline.make_msa_features((uniref90_msa, bfd_msa, mgnify_msa))
     for key, value in msa_features_for_all.items():
         logging.info("%s: %s", key, value.shape)
 
@@ -133,9 +127,7 @@ def parse_pdb(pdb_path: str) -> tuple[np.ndarray, np.ndarray, str]:
     num_res = len([res for res in chain if is_aa(res)])
     logging.info("Number of residues: %s", num_res)
     all_atoms_positions = np.zeros((num_res, residue_constants.atom_type_num, 3))
-    all_atoms_mask = np.zeros(
-        (num_res, residue_constants.atom_type_num), dtype=np.int32
-    )
+    all_atoms_mask = np.zeros((num_res, residue_constants.atom_type_num), dtype=np.int32)
     seq = []
 
     for i, residue in enumerate(chain):
@@ -179,15 +171,9 @@ def parse_pdb(pdb_path: str) -> tuple[np.ndarray, np.ndarray, str]:
         cd = residue_constants.atom_order["CD"]
         nh1 = residue_constants.atom_order["NH1"]
         nh2 = residue_constants.atom_order["NH2"]
-        if residue.resname == "ARG" and np.all(
-            all_atoms_mask[[i, i, i], [cd, nh1, nh2]]
-        ):
-            dist_nh1_cd = np.linalg.norm(
-                all_atoms_positions[i, nh1] - all_atoms_positions[i, cd]
-            )
-            dist_nh2_cd = np.linalg.norm(
-                all_atoms_positions[i, nh2] - all_atoms_positions[i, cd]
-            )
+        if residue.resname == "ARG" and np.all(all_atoms_mask[[i, i, i], [cd, nh1, nh2]]):
+            dist_nh1_cd = np.linalg.norm(all_atoms_positions[i, nh1] - all_atoms_positions[i, cd])
+            dist_nh2_cd = np.linalg.norm(all_atoms_positions[i, nh2] - all_atoms_positions[i, cd])
             if dist_nh2_cd < dist_nh1_cd:
                 all_atoms_positions[i, nh1], all_atoms_positions[i, nh2] = (
                     all_atoms_positions[i, nh2].copy(),
@@ -233,7 +219,7 @@ def _make_template_features_from_files(
     The template file is expected to be the same as AlphaFold template searching tools output.
     """
 
-    with open(template_path, "r") as f:
+    with open(template_path) as f:
         pdb_templates_result = f.read()
 
     pdb_template_hits = template_searcher.get_template_hits(
@@ -360,9 +346,7 @@ def _make_msa_features(
         dtype=np.int32,
     )
     empty_msa_features["num_alignments"] = np.ones(num_res, dtype=np.int32)
-    empty_msa_features["msa_species_identifiers"] = np.array(
-        ["".encode()], dtype=object
-    )
+    empty_msa_features["msa_species_identifiers"] = np.array([b""], dtype=object)
 
     if not msa_features_for_all:
         return empty_msa_features
@@ -370,9 +354,7 @@ def _make_msa_features(
         raise ValueError("MSA and sequence lengths do not match.")
 
     msa_features = copy.deepcopy(msa_features_for_all)  # type: ignore
-    msa_features["msa"][0] = [
-        residue_constants.HHBLITS_AA_TO_ID[res] for res in sequence
-    ]
+    msa_features["msa"][0] = [residue_constants.HHBLITS_AA_TO_ID[res] for res in sequence]
 
     return msa_features
 
@@ -407,14 +389,13 @@ def _make_template_features(
             "template_all_atom_positions": np.zeros(
                 (1, num_res, residue_constants.atom_type_num, 3), np.float32
             ),
-            "template_domain_names": np.array(["".encode()], dtype=object),
-            "template_sequence": np.array(["".encode()], dtype=object),
+            "template_domain_names": np.array([b""], dtype=object),
+            "template_sequence": np.array([b""], dtype=object),
             "template_sum_probs": np.array([0], dtype=np.float32),
         }
         if is_multimer
         else {
-            name: np.array([], dtype=dtype)
-            for name, dtype in templates.TEMPLATE_FEATURES.items()
+            name: np.array([], dtype=dtype) for name, dtype in templates.TEMPLATE_FEATURES.items()
         }
     )
 
@@ -468,15 +449,11 @@ def _make_template_features(
         all_atoms_positions = np.where(
             indices_hit[:, None, None] == -1, 0, all_atoms_positions_[indices_hit]
         )
-        all_atoms_mask = np.where(
-            indices_hit[:, None] == -1, 0, all_atoms_mask_[indices_hit]
-        )
+        all_atoms_mask = np.where(indices_hit[:, None] == -1, 0, all_atoms_mask_[indices_hit])
         sequence = "".join(sequence_[idx] if idx != -1 else "-" for idx in indices_hit)
         logging.info("Template sequence %s: %s", domain_name, sequence)
 
-        aatype = residue_constants.sequence_to_onehot(
-            sequence, residue_constants.HHBLITS_AA_TO_ID
-        )
+        aatype = residue_constants.sequence_to_onehot(sequence, residue_constants.HHBLITS_AA_TO_ID)
 
         template_features_raw["template_aatype"].append(aatype)
         template_features_raw["template_all_atom_positions"].append(all_atoms_positions)
@@ -506,9 +483,7 @@ def _convert_pairing_msa_features(
     }
 
     pairing_msa_features = {
-        f"{key}_all_seq": value
-        for key, value in msa_features.items()
-        if key in valid_features
+        f"{key}_all_seq": value for key, value in msa_features.items() if key in valid_features
     }
 
     return pairing_msa_features
@@ -535,9 +510,7 @@ class DataPipeline:
 
         # Check if template_dir is provided
         if template_dir:
-            self.template_features_for_all = _make_template_features_for_all(
-                template_dir
-            )
+            self.template_features_for_all = _make_template_features_for_all(template_dir)
         else:
             logging.info("No templates provided.")
             self.template_features_for_all = {}
@@ -550,9 +523,7 @@ class DataPipeline:
         """Constructs sequence, MSA and template features for each query sequence."""
         sequence_features = _make_sequence_features(sequence, domain_name)
         msa_features = _make_msa_features(sequence, self.msa_features_for_all)
-        template_features = _make_template_features(
-            sequence, self.template_features_for_all
-        )
+        template_features = _make_template_features(sequence, self.template_features_for_all)
 
         feature_dict: pipeline.FeatureDict = {
             **sequence_features,
@@ -580,9 +551,7 @@ class DataPipelineSingleChain(DataPipeline):
         # Check if pairing_msa_dir is provided
         # only used for multimer mode
         if pairing_msa_dir:
-            self.pairing_msa_features_for_all = _make_msa_features_for_all(
-                pairing_msa_dir
-            )
+            self.pairing_msa_features_for_all = _make_msa_features_for_all(pairing_msa_dir)
         else:
             logging.info("No pairing MSA provided.")
             self.pairing_msa_features_for_all = {}
@@ -643,19 +612,14 @@ class DataPipelineMultimer:
             # Get paths for MSA, template and pairing MSA directories
             dirs = {
                 "msa_dir": os.path.join(self.precalc_dir, chain_id, self.msa_dir_name),
-                "template_dir": os.path.join(
-                    self.precalc_dir, chain_id, self.template_dir_name
-                ),
+                "template_dir": os.path.join(self.precalc_dir, chain_id, self.template_dir_name),
                 "pairing_msa_dir": os.path.join(
                     self.precalc_dir, chain_id, self.pairing_msa_dir_name
                 ),
             }
 
             # Only use paths that exist, otherwise use empty string
-            dirs = {
-                key: value if os.path.isdir(value) else ""
-                for key, value in dirs.items()
-            }
+            dirs = {key: value if os.path.isdir(value) else "" for key, value in dirs.items()}
             all_chain_features_for_all[chain_id] = DataPipelineSingleChain(**dirs)
 
         return all_chain_features_for_all
@@ -664,9 +628,7 @@ class DataPipelineMultimer:
         """Constructs sequence, MSA and template features for each query multimer sequence."""
 
         seqs_list = sequences.split(":")
-        if (seqs_num := len(seqs_list)) != (
-            chains_num := len(self.all_chain_features_for_all)
-        ):
+        if (seqs_num := len(seqs_list)) != (chains_num := len(self.all_chain_features_for_all)):
             raise ValueError(
                 f"Number of sequences ({seqs_num}) does not match number of chains ({chains_num})."
             )
@@ -677,16 +639,12 @@ class DataPipelineMultimer:
         for chain_id, sequence in zip(self.all_chain_features_for_all, seqs_list):
             logging.info("Processing chain %s", chain_id)
             if sequence in sequence_features:
-                all_chain_features[chain_id] = copy.deepcopy(
-                    sequence_features[sequence]
-                )
+                all_chain_features[chain_id] = copy.deepcopy(sequence_features[sequence])
                 continue
-            feature_dict = self.all_chain_features_for_all[
-                chain_id
-            ].process_single_chain(sequence, domain_name, is_homomer_or_monomer)
-            chain_features = pipeline_multimer.convert_monomer_features(
-                feature_dict, chain_id
+            feature_dict = self.all_chain_features_for_all[chain_id].process_single_chain(
+                sequence, domain_name, is_homomer_or_monomer
             )
+            chain_features = pipeline_multimer.convert_monomer_features(feature_dict, chain_id)
             all_chain_features[chain_id] = chain_features
             sequence_features[sequence] = chain_features
 
@@ -698,9 +656,7 @@ class DataPipelineMultimer:
 
         # Add domain name for easy identification
         # will be deleted when running the model
-        feature_dict_multimer["domain_name"] = np.array(
-            [domain_name.encode()], dtype=object
-        )
+        feature_dict_multimer["domain_name"] = np.array([domain_name.encode()], dtype=object)
 
         return feature_dict_multimer
 
@@ -762,21 +718,15 @@ class Af2Ig:
         logging.info("Predicting %s", domain_name)
 
         # Run the model
-        processed_feature_dict = self.model.process_features(
-            feature_dict, random_seed=random_seed
-        )
-        prediction_result = self.model.predict(
-            processed_feature_dict, random_seed=random_seed
-        )
+        processed_feature_dict = self.model.process_features(feature_dict, random_seed=random_seed)
+        prediction_result = self.model.predict(processed_feature_dict, random_seed=random_seed)
 
         # Remove jax dependency from results
         prediction_result = _jnp_to_np(dict(prediction_result))
 
         # Add confidence metrics
         plddt = prediction_result["plddt"]
-        plddt_b_factors = np.repeat(
-            plddt[:, None], residue_constants.atom_type_num, axis=-1
-        )
+        plddt_b_factors = np.repeat(plddt[:, None], residue_constants.atom_type_num, axis=-1)
 
         # Adjust chain id to start from 0
         # See https://github.com/google-deepmind/alphafold/issues/251
@@ -848,7 +798,7 @@ class Af2Ig:
 
     def _preprocess(self, q_in: queue.Queue, fasta_path: str) -> None:
         """Preprocesses the sequences and adds them to the queue."""
-        with open(fasta_path, "r") as f:
+        with open(fasta_path) as f:
             records = list(SimpleFastaParser(f))
 
         for domain_name, sequences in tqdm(records):
@@ -863,9 +813,7 @@ class Af2Ig:
 
         q_in.put(None)
 
-    def _process(
-        self, q_in: queue.Queue, q_out: queue.Queue, random_seed: int = 0
-    ) -> None:
+    def _process(self, q_in: queue.Queue, q_out: queue.Queue, random_seed: int = 0) -> None:
         """Processes the sequences in the queue."""
         while True:
             feature_dict = q_in.get()
@@ -923,7 +871,7 @@ class Af2Ig:
         if asynchronous:
             self._run(fasta_path, output_dir, random_seed=random_seed)
         else:
-            with open(fasta_path, "r") as f:
+            with open(fasta_path) as f:
                 records = list(SimpleFastaParser(f))
 
             for domain_name, sequences in tqdm(records):
@@ -932,9 +880,7 @@ class Af2Ig:
                 # process features
                 try:
                     feature_dict = self.data_pipeline.process(sequences, domain_name)
-                    prediction_result = self.predict(
-                        feature_dict, random_seed=random_seed
-                    )
+                    prediction_result = self.predict(feature_dict, random_seed=random_seed)
                     self.save(prediction_result, output_dir)
                 except ValueError as e:
                     logging.error(e)
