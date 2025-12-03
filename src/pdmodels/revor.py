@@ -387,7 +387,7 @@ class ReVor:
         if os.path.exists(checkpoint_path):
             self._load_checkpoint(checkpoint_path)
         elif input_path.endswith(".fasta"):
-            with open(input_path) as f:
+            with open(input_path, encoding="utf-8") as f:
                 for title, seqs in SimpleFastaParser(f):
                     self.q.append(seqs)
                     self.dag.add_node(
@@ -482,7 +482,7 @@ class ReVor:
 
         # Save sequences
         output_fasta_path = os.path.join(output_dir, "sequences.fasta")
-        with open(output_fasta_path, "w") as f:
+        with open(output_fasta_path, "w", encoding="utf-8") as f:
             i = 0
             for seqs in self.dag:
                 if not self.dag.out_degree(seqs):

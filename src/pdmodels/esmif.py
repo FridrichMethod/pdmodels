@@ -228,7 +228,7 @@ class ESMIF(nn.Module):
 
         # shift tokens to predict next token's logits
         prev_output_tokens = tokens[:, :-1]
-        B, L = prev_output_tokens.shape
+        B, _ = prev_output_tokens.shape
 
         logits: torch.Tensor = self.model(coords, padding_mask, confidence, prev_output_tokens)[
             0

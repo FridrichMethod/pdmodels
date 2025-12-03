@@ -52,7 +52,7 @@ def run_msa_tool(
         precomputed_msa = parsers.truncate_stockholm_msa(msa_path, max_sto_sequences)
         result = {"sto": precomputed_msa}
     else:
-        with open(msa_path) as f:
+        with open(msa_path, encoding="utf-8") as f:
             result = {msa_format: f.read()}
     return result
 
@@ -219,7 +219,7 @@ def _make_template_features_from_files(
     The template file is expected to be the same as AlphaFold template searching tools output.
     """
 
-    with open(template_path) as f:
+    with open(template_path, encoding="utf-8") as f:
         pdb_templates_result = f.read()
 
     pdb_template_hits = template_searcher.get_template_hits(
@@ -420,7 +420,7 @@ def _make_template_features(
     else:
         raise ValueError("kalign binary not found.")
 
-    a3m = kalign_runner.align([sequence] + sequence_list)
+    a3m = kalign_runner.align([sequence, *sequence_list])
     msa = parsers.parse_a3m(a3m)
     indices_hit_list = _msa_to_indices_hit(msa)
 
@@ -791,14 +791,14 @@ class Af2Ig:
 
         unrelaxed_pdb_path = os.path.join(output_dir, f"unrelaxed_{domain_name}.pdb")
         logging.info("Saving PDB to %s", unrelaxed_pdb_path)
-        with open(unrelaxed_pdb_path, "w") as f:
+        with open(unrelaxed_pdb_path, "w", encoding="utf-8") as f:
             f.write(unrelaxed_pdb)
 
         logging.info("Finished %s", domain_name)
 
     def _preprocess(self, q_in: queue.Queue, fasta_path: str) -> None:
         """Preprocesses the sequences and adds them to the queue."""
-        with open(fasta_path) as f:
+        with open(fasta_path, encoding="utf-8") as f:
             records = list(SimpleFastaParser(f))
 
         for domain_name, sequences in tqdm(records):
@@ -871,7 +871,7 @@ class Af2Ig:
         if asynchronous:
             self._run(fasta_path, output_dir, random_seed=random_seed)
         else:
-            with open(fasta_path) as f:
+            with open(fasta_path, encoding="utf-8") as f:
                 records = list(SimpleFastaParser(f))
 
             for domain_name, sequences in tqdm(records):

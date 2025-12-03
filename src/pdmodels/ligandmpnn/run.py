@@ -26,10 +26,7 @@ def cli(args) -> None:
     """
     Inference function
     """
-    if args.seed:
-        seed = args.seed
-    else:
-        seed = int(np.random.randint(0, high=99999, size=1, dtype=int)[0])
+    seed = args.seed or int(np.random.randint(0, high=99999, size=1, dtype=int)[0])
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
@@ -46,9 +43,8 @@ def cli(args) -> None:
         os.makedirs(base_folder + "backbones", exist_ok=True)
     if not os.path.exists(base_folder + "packed"):
         os.makedirs(base_folder + "packed", exist_ok=True)
-    if args.save_stats:
-        if not os.path.exists(base_folder + "stats"):
-            os.makedirs(base_folder + "stats", exist_ok=True)
+    if args.save_stats and not os.path.exists(base_folder + "stats"):
+        os.makedirs(base_folder + "stats", exist_ok=True)
     if args.model_type == "protein_mpnn":
         checkpoint_path = args.checkpoint_protein_mpnn
     elif args.model_type == "ligand_mpnn":
@@ -90,13 +86,13 @@ def cli(args) -> None:
     model.eval()
 
     if args.pdb_path_multi:
-        with open(args.pdb_path_multi, "r") as fh:
+        with open(args.pdb_path_multi, encoding="utf-8") as fh:
             pdb_paths = list(json.load(fh))
     else:
         pdb_paths = [args.pdb_path]
 
     if args.fixed_residues_multi:
-        with open(args.fixed_residues_multi, "r") as fh:
+        with open(args.fixed_residues_multi, encoding="utf-8") as fh:
             fixed_residues_multi = json.load(fh)
     else:
         fixed_residues = [item for item in args.fixed_residues.split()]
@@ -105,7 +101,7 @@ def cli(args) -> None:
             fixed_residues_multi[pdb] = fixed_residues
 
     if args.redesigned_residues_multi:
-        with open(args.redesigned_residues_multi, "r") as fh:
+        with open(args.redesigned_residues_multi, encoding="utf-8") as fh:
             redesigned_residues_multi = json.load(fh)
     else:
         redesigned_residues = [item for item in args.redesigned_residues.split()]
@@ -122,22 +118,22 @@ def cli(args) -> None:
             bias_AA[restype_str_to_int[AA]] = a2[i]
 
     if args.bias_AA_per_residue_multi:
-        with open(args.bias_AA_per_residue_multi, "r") as fh:
+        with open(args.bias_AA_per_residue_multi, encoding="utf-8") as fh:
             bias_AA_per_residue_multi = json.load(fh)  # {"pdb_path" : {"A12": {"G": 1.1}}}
     else:
         if args.bias_AA_per_residue:
-            with open(args.bias_AA_per_residue, "r") as fh:
+            with open(args.bias_AA_per_residue, encoding="utf-8") as fh:
                 bias_AA_per_residue = json.load(fh)  # {"A12": {"G": 1.1}}
             bias_AA_per_residue_multi = {}
             for pdb in pdb_paths:
                 bias_AA_per_residue_multi[pdb] = bias_AA_per_residue
 
     if args.omit_AA_per_residue_multi:
-        with open(args.omit_AA_per_residue_multi, "r") as fh:
+        with open(args.omit_AA_per_residue_multi, encoding="utf-8") as fh:
             omit_AA_per_residue_multi = json.load(fh)  # {"pdb_path" : {"A12": "PQR", "A13": "QS"}}
     else:
         if args.omit_AA_per_residue:
-            with open(args.omit_AA_per_residue, "r") as fh:
+            with open(args.omit_AA_per_residue, encoding="utf-8") as fh:
                 omit_AA_per_residue = json.load(fh)  # {"A12": "PG"}
             omit_AA_per_residue_multi = {}
             for pdb in pdb_paths:
@@ -359,7 +355,7 @@ def cli(args) -> None:
                 model_type=args.model_type,
             )
             feature_dict["batch_size"] = args.batch_size
-            B, L, _, _ = feature_dict["X"].shape  # batch size should be 1 for now.
+            _B, L, _, _ = feature_dict["X"].shape  # batch size should be 1 for now.
             # add additional keys to the feature dictionary
             feature_dict["temperature"] = args.temperature
             feature_dict["bias"] = (
@@ -427,7 +423,7 @@ def cli(args) -> None:
 
             output_fasta = base_folder + "/seqs/" + name + args.file_ending + ".fa"
             output_backbones = base_folder + "/backbones/"
-            output_packed = base_folder + "/packed/"
+            base_folder + "/packed/"
             output_stats_path = base_folder + "stats/" + name + args.file_ending + ".pt"
 
             out_dict = {}
@@ -443,21 +439,9 @@ def cli(args) -> None:
             if args.save_stats:
                 torch.save(out_dict, output_stats_path)
 
-            with open(output_fasta, "w") as f:
+            with open(output_fasta, "w", encoding="utf-8") as f:
                 f.write(
-                    ">{}, T={}, seed={}, num_res={}, num_ligand_res={}, use_ligand_context={}, ligand_cutoff_distance={}, batch_size={}, number_of_batches={}, model_path={}\n{}\n".format(
-                        name,
-                        args.temperature,
-                        seed,
-                        torch.sum(rec_mask).cpu().numpy(),
-                        torch.sum(combined_mask[:1]).cpu().numpy(),
-                        bool(args.ligand_mpnn_use_atom_context),
-                        float(args.ligand_mpnn_cutoff_for_score),
-                        args.batch_size,
-                        args.number_of_batches,
-                        checkpoint_path,
-                        seq_out_str,
-                    )
+                    f">{name}, T={args.temperature}, seed={seed}, num_res={torch.sum(rec_mask).cpu().numpy()}, num_ligand_res={torch.sum(combined_mask[:1]).cpu().numpy()}, use_ligand_context={bool(args.ligand_mpnn_use_atom_context)}, ligand_cutoff_distance={float(args.ligand_mpnn_cutoff_for_score)}, batch_size={args.batch_size}, number_of_batches={args.number_of_batches}, model_path={checkpoint_path}\n{seq_out_str}\n"
                 )
                 for ix in range(S_stack.shape[0]):
                     ix_suffix = ix
@@ -514,29 +498,11 @@ def cli(args) -> None:
                     if ix == S_stack.shape[0] - 1:
                         # final 2 lines
                         f.write(
-                            ">{}, id={}, T={}, seed={}, overall_confidence={}, ligand_confidence={}, seq_rec={}\n{}".format(
-                                name,
-                                ix_suffix,
-                                args.temperature,
-                                seed,
-                                loss_np,
-                                loss_XY_np,
-                                seq_rec_print,
-                                seq_out_str,
-                            )
+                            f">{name}, id={ix_suffix}, T={args.temperature}, seed={seed}, overall_confidence={loss_np}, ligand_confidence={loss_XY_np}, seq_rec={seq_rec_print}\n{seq_out_str}"
                         )
                     else:
                         f.write(
-                            ">{}, id={}, T={}, seed={}, overall_confidence={}, ligand_confidence={}, seq_rec={}\n{}\n".format(
-                                name,
-                                ix_suffix,
-                                args.temperature,
-                                seed,
-                                loss_np,
-                                loss_XY_np,
-                                seq_rec_print,
-                                seq_out_str,
-                            )
+                            f">{name}, id={ix_suffix}, T={args.temperature}, seed={seed}, overall_confidence={loss_np}, ligand_confidence={loss_XY_np}, seq_rec={seq_rec_print}\n{seq_out_str}\n"
                         )
 
 

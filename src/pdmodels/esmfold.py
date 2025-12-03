@@ -29,12 +29,12 @@ class EsmForProteinFoldingNew(EsmForProteinFolding):
         if isinstance(seqs_list, str):
             seqs_list = [seqs_list]
 
-        aatype, mask, _residx, linker_mask, chain_index = batch_encode_sequences(
+        aatype, mask, residx_, linker_mask, chain_index = batch_encode_sequences(
             seqs_list, residue_index_offset, chain_linker
         )
 
         if residx is None:
-            residx = _residx
+            residx = residx_
         elif not isinstance(residx, torch.Tensor):
             residx = collate_dense_tensors(residx)
 
@@ -184,7 +184,7 @@ class ESMFold(nn.Module):
 
         pdb = self.model.output_to_pdb(output)[0]
         print(f"Saved {title}.pdb to {output_dir}")
-        with open(os.path.join(output_dir, f"{title}.pdb"), "w") as f:
+        with open(os.path.join(output_dir, f"{title}.pdb"), "w", encoding="utf-8") as f:
             f.write(pdb)
 
     def run(
@@ -214,7 +214,7 @@ class ESMFold(nn.Module):
         os.makedirs(output_dir, exist_ok=True)
 
         # Faster to parse the whole fasta file at once
-        with open(fasta_path) as f:
+        with open(fasta_path, encoding="utf-8") as f:
             records = list(SimpleFastaParser(f))
 
         for record in tqdm(records):
