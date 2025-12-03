@@ -17,7 +17,35 @@ dependencies = [] # All dependencies are handled by the `setup.sh` script
 pdmodels = "pdmodels.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "pre-commit"]
+dev = [
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "pytest-env",
+    "pytest-html",
+    "pytest-timeout",
+    "pytest-xdist",
+    "ruff",
+]
+mypy = [
+    "mypy",
+    "pandas-stubs",
+    "types-PyYAML",
+    "types-aiofiles",
+    "types-cachetools",
+    "types-click",
+    "types-python-dateutil",
+    "types-python-slugify",
+    "types-pytz",
+    "types-redis",
+    "types-requests",
+    "types-seaborn",
+    "types-setuptools",
+    "types-six",
+    "types-tabulate",
+    "types-toml",
+    "types-tqdm",
+]
 
 [tool.setuptools.dynamic]
 version = { attr = "pdmodels.__version__" }

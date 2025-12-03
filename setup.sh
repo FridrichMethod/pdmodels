@@ -80,4 +80,4 @@ uv pip install mdtraj
 uv pip install modelcif
 
 # Install the pdmodels package
-uv pip install -e .
+uv pip install -e .[dev,mypy]
