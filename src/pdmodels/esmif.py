@@ -197,7 +197,7 @@ class ESMIF(nn.Module):
         native_coords, native_seqs = load_native_coords_and_seqs(pdb_path)
 
         # Check if the native chain ids match the expected alphabetical order for safety
-        assert "".join(native_seqs.keys()) == CHAIN_ALPHABET[: len(native_seqs)]
+        assert "".join(native_seqs.keys()) == CHAIN_ALPHABET[: len(native_seqs)], f"Native chain ids {native_seqs.keys()} do not match expected alphabetical order {CHAIN_ALPHABET[: len(native_seqs)]}"
         if seqs_list is None:
             seqs_list = [":".join(native_seqs.values())]
         seq_dict_list = [dict(zip(native_seqs.keys(), seqs.split(":"))) for seqs in seqs_list]
