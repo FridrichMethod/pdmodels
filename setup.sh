@@ -22,8 +22,7 @@ mv "$CONDA_PREFIX"/compiler_compat/ld{,.bak}
 # Install uv and set up Python 3.12
 pip install uv
 
-# Install Jupyter and PyMOL
-conda install -c conda-forge jupyter --yes
+# Install PyMOL
 conda install -c schrodinger -c conda-forge pymol --yes
 # Update SQLite to fix issue with Jupyter after installing PyMOL
 conda update -c conda-forge sqlite --yes
@@ -58,26 +57,6 @@ uv pip install git+https://github.com/aqlaboratory/openfold.git --no-build-isola
 # Update all CUDA libraries
 uv pip install torch --upgrade
 uv pip install nvidia-cudnn-cu12 --upgrade
-# pip list --format=freeze |
-#     cut -d'=' -f1 |
-#     grep '^nvidia-' |
-#     xargs uv pip install --upgrade
-
-# Install ProDy
-uv pip install prody
-uv pip install numpy --upgrade
-
-# Install additional libraries
-uv pip install transformers
-uv pip install scikit-learn
-uv pip install rdkit
-uv pip install matplotlib
-uv pip install seaborn
-uv pip install ipympl
-uv pip install py3Dmol
-uv pip install biotite
-uv pip install mdtraj
-uv pip install modelcif
 
 # Install the pdmodels package
 uv pip install -e .[dev,mypy]

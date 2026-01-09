@@ -11,7 +11,21 @@ description = "Protein Design Models CLI and library"
 readme = "README.md"
 requires-python = ">=3.12"
 
-dependencies = [] # All dependencies are handled by the `setup.sh` script
+dependencies = [
+    "biotite",
+    "ipympl",
+    "jupyter",
+    "matplotlib",
+    "mdtraj",
+    "modelcif",
+    "numpy",
+    "prody",
+    "py3Dmol",
+    "rdkit",
+    "scikit-learn",
+    "seaborn",
+    "transformers",
+]
 
 [project.optional-dependencies]
 dev = [
