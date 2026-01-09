@@ -294,7 +294,7 @@ def calculate_rmsd(
         cmd.load(target, "target")
 
         # Align/superimpose the structures
-        func(f"mobile and {left_on}", f"target and {right_on}", **kwargs)
+        func(f"mobile and ({left_on})", f"target and ({right_on})", **kwargs)
 
         rmsds = []
         for i, report in enumerate(reports):
@@ -302,16 +302,16 @@ def calculate_rmsd(
 
             # Create the alignment object without touching the structures
             func(
-                f"mobile and {left_report}",
-                f"target and {right_report}",
+                f"mobile and ({left_report})",
+                f"target and ({right_report})",
                 cycles=0,
                 transform=0,
                 object=f"aln_{i}",
             )
             # Calculate the RMSD between the matched atoms
             rmsd = cmd.rms_cur(
-                f"mobile and {left_report} and aln_{i}",
-                f"target and {right_report} and aln_{i}",
+                f"mobile and ({left_report}) and aln_{i}",
+                f"target and ({right_report}) and aln_{i}",
                 matchmaker=-1,
             )
             rmsds.append(rmsd)
