@@ -4,7 +4,7 @@ ROOT_DIR=$(git rev-parse --show-toplevel)
 
 python -m pdmodels mpnn \
     --model_type "ligand_mpnn" \
-    --checkpoint_ligand_mpnn "$ROOT_DIR/model_params/ligandmpnn/ligandmpnn_v_32_020_25.pt" \
+    --checkpoint_ligand_mpnn "$ROOT_DIR/model_params/ligand_mpnn/ligandmpnn_v_32_020_25.pt" \
     --temperature 0.3 \
     --pdb_path "$ROOT_DIR/assets/multimers/NbALFA_ALFAtag.pdb" \
     --out_folder "$ROOT_DIR/assets/multimers/mpnn_samples" \
@@ -18,5 +18,5 @@ python -m pdmodels mpnn \
     --number_of_batches 4 \
     --verbose 1
 
-# --checkpoint_ligand_mpnn "$ROOT_DIR/model_params/ligandmpnn/ligandmpnn_v_32_030_25.pt" \
+# --checkpoint_ligand_mpnn "$ROOT_DIR/model_params/ligand_mpnn/ligandmpnn_v_32_030_25.pt" \
 # --temperature 0.2 \

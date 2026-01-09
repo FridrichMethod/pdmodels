@@ -18,7 +18,7 @@ from scipy.spatial import distance_matrix
 from torch.types import Device
 
 from pdmodels.globals import AA_ALPHABET, AA_DICT, PDB_CHAIN_IDS
-from pdmodels.ligandmpnn.data_utils import parse_PDB as _parse_PDB
+from pdmodels.ligand_mpnn.data_utils import parse_PDB as _parse_PDB
 
 
 class ScoreDict(TypedDict):

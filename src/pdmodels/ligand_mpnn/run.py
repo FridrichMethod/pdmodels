@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from prody import writePDB
 
-from pdmodels.ligandmpnn.data_utils import (
+from pdmodels.ligand_mpnn.data_utils import (
     alphabet,
     element_dict_rev,
     featurize,
@@ -19,7 +19,7 @@ from pdmodels.ligandmpnn.data_utils import (
     restype_int_to_str,
     restype_str_to_int,
 )
-from pdmodels.ligandmpnn.model_utils import ProteinMPNN
+from pdmodels.ligand_mpnn.model_utils import ProteinMPNN
 
 
 def cli(args) -> None:
@@ -753,7 +753,7 @@ def setup_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--checkpoint_path_sc",
         type=str,
-        default="./model_params/ligandmpnn_sc_v_32_002_16.pt",
+        default="./model_params/ligand_mpnn_sc_v_32_002_16.pt",
         help="Path to model weights.",
     )
 

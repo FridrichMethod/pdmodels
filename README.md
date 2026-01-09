@@ -29,4 +29,7 @@ conda activate pdmodels
 
 # Install the required packages
 bash setup.sh
+
+# Download the model parameters
+bash get_model_params.sh
 ```

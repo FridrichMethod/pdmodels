@@ -27,7 +27,7 @@ repos:
       - id: ruff-check
         args: [--fix]
         stages: [pre-commit]
-        exclude: src/pdmodels/ligandmpnn/
+        exclude: src/pdmodels/ligand_mpnn/
       - id: ruff-format
         stages: [pre-commit]
 
@@ -53,4 +53,4 @@ repos:
           - types-six
           - types-tabulate
           - types-toml
-        exclude: src/pdmodels/ligandmpnn/
+        exclude: src/pdmodels/ligand_mpnn/

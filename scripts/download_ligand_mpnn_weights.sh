@@ -2,7 +2,7 @@
 
 output_dir="$1"
 
-model_params="${output_dir}/ligandmpnn"
+model_params="${output_dir}/ligand_mpnn"
 
 mkdir -p "${model_params}"
 
