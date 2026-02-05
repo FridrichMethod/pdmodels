@@ -26,8 +26,6 @@ from Bio.PDB import PDBParser, is_aa
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from tqdm.auto import tqdm
 
-from pdmodels.utils import Timer
-
 GeneralFeatureDict = MutableMapping[str, list[Any]]
 
 
@@ -919,15 +917,7 @@ def cli(args: argparse.Namespace) -> None:
     # Run AlphaFold2 initial guess
     af2ig = Af2Ig(model_name, is_multimer, data_dir, data_pipeline)
 
-    with Timer() as timer:
-        af2ig.run(
-            fasta_path,
-            output_dir,
-            random_seed=random_seed,
-            asynchronous=args.asynchronous,
-        )
-
-    logging.info("Total time: %s", timer.elapsed)
+    af2ig.run(fasta_path, output_dir, random_seed=random_seed, asynchronous=args.asynchronous)
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> None:
