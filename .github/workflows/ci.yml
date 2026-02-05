@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    defaults:
+      run:
+        shell: bash -l {0}
+    name: Linux py ${{ matrix.python-version }} tests
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Miniconda (${{ matrix.python-version }})
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+          activate-environment: pdmodels
+          channels: conda-forge,bioconda,defaults,nvidia,schrodinger
+          use-mamba: true
+      - name: Set environment
+        run: |
+          bash setup.sh
+
+      - name: Check style
+        run: |
+          pre-commit run --all-files
