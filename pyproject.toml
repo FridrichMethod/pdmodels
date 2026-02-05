@@ -12,17 +12,23 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
+    "biopython",
     "biotite",
     "ipympl",
     "jupyter",
     "matplotlib",
+    "mdanalysis",
     "mdtraj",
     "modelcif",
     "numpy",
+    "pandas",
+    "polars",
     "prody",
     "py3Dmol",
+    "pyarrow",
     "rdkit",
     "scikit-learn",
+    "scipy",
     "seaborn",
     "transformers",
 ]
