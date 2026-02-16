@@ -69,7 +69,7 @@ pdmodels = "pdmodels.cli:main"
 
 [tool.ruff]
 target-version = "py312"
-preview = false
+preview = true
 src = ["src"]
 line-length = 100
 force-exclude = true
