@@ -121,7 +121,6 @@ class ESMFold(nn.Module):
         output: dict[str, torch.Tensor]
             Dictionary containing the predicted 3D structure of the protein.
         """
-
         output = self.model.infer(
             seqs_list,
             num_recycles=num_recycles,
@@ -156,7 +155,6 @@ class ESMFold(nn.Module):
         output: dict[str, torch.Tensor]
             Dictionary containing the predicted 3D structure of the protein.
         """
-
         return self.batch_predict(
             [seqs],
             num_recycles=num_recycles,
@@ -176,7 +174,6 @@ class ESMFold(nn.Module):
         title: str
             Title of the protein.
         """
-
         os.makedirs(output_dir, exist_ok=True)
 
         torch.save(output, os.path.join(output_dir, f"{title}.pt"))
@@ -210,7 +207,6 @@ class ESMFold(nn.Module):
         chain_linker: str
             A string of Gs representing the linker between the two chains.
         """
-
         os.makedirs(output_dir, exist_ok=True)
 
         # Faster to parse the whole fasta file at once
@@ -252,7 +248,6 @@ def cli(args: argparse.Namespace) -> None:
 
 def setup_parser(parser: argparse.ArgumentParser) -> None:
     """Set up the command line argument parser for ESMFold."""
-
     parser.add_argument(
         "fasta_path",
         type=str,

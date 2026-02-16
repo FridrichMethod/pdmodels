@@ -143,7 +143,6 @@ class ProteinMPNNBatch(ProteinMPNN):
 
         Used as the score method in the ProteinMPNN class.
         """
-
         processed_features = self._process_features(feature_dict)
 
         mask = processed_features["mask"]
@@ -172,7 +171,6 @@ class ProteinMPNNBatch(ProteinMPNN):
 
         Allow different sequences to be scored in parallel on the same complex structure.
         """
-
         processed_features = self._process_features(feature_dict)
 
         mask = processed_features["mask"]
@@ -239,7 +237,7 @@ class MPNN(nn.Module):
     ) -> None:
         """Initialize the MPNN model from the checkpoint file.
 
-        Args
+        Args:
         ------
         checkpoint_path: str
             The path to the checkpoint file.
@@ -256,12 +254,11 @@ class MPNN(nn.Module):
         seed: int
             The seed to set for reproducibility.
 
-        Notes
+        Notes:
         ------
         - If use_side_chain_context is False, both chains_to_design and redesigned_residues
             in the score method will have no effect
         """
-
         super().__init__()
 
         self._device = device
@@ -322,7 +319,6 @@ class MPNN(nn.Module):
 
     def _featurize(self, protein_dict: dict[str, Any]) -> MPNNFeatureDict:
         """Featurize the protein structure and sequences for the MPNN model."""
-
         feature_dict = featurize(
             protein_dict,
             cutoff_for_score=self.ligand_mpnn_cutoff_for_score,
@@ -340,19 +336,18 @@ class MPNN(nn.Module):
 
         Make sure that the symmetry residues are non-empty and pairwise disjoint.
 
-        Args
+        Args:
         ------
         symmetry_residues: str
             A pipe-separated list of comma-separated symmetry residues.
         res_to_idx: dict[str, int]
             A dictionary mapping residue names to their indices.
 
-        Returns
+        Returns:
         -------
         symmetry_list_of_lists: list[list[int]]
             A list of lists of symmetry residues grouped together.
         """
-
         symmetry_list_of_lists: list[list[int]] = []
         for symmetry_group in symmetry_residues.split("|"):
             symmetry_set: set[int] = {
@@ -401,7 +396,7 @@ class MPNN(nn.Module):
     ) -> ScoreDict:
         """Score protein sequences towards a given complex structure.
 
-        Args
+        Args:
         ------
         pdb_path: str
             The path to the PDB file containing the complex structure.
@@ -424,7 +419,7 @@ class MPNN(nn.Module):
         verbose: bool
             Whether to print the parsed ligand atoms and their types.
 
-        Returns
+        Returns:
         -------
         output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
@@ -436,7 +431,7 @@ class MPNN(nn.Module):
             perplexity: torch.Tensor[B,]
                 exp{average entropy} of the full sequence.
 
-        Notes
+        Notes:
         ------
         - Please make sure that the chain letters in the PDB file match the order of the sequences in `seqs_list`.
         - If `chains_to_design` and `redesigned_residues` are empty, all residues are considered redesignable.
@@ -448,7 +443,6 @@ class MPNN(nn.Module):
         - The `use_sequence` option is only used to determine if sequence information is used in the sequence decoder.
         - The actual batch size is `len(seqs_list) * repeat` if `repeat` is provided.
         """
-
         protein_dict = parse_PDB(
             pdb_path,
             device=self.device,  # type: ignore

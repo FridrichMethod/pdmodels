@@ -33,7 +33,7 @@ class ScoreDict(TypedDict):
 class Timer:
     """Context manager to measure the time elapsed in a block of code.
 
-    Example
+    Example:
     -------
     >>> with Timer() as t:
     >>>     time.sleep(1)
@@ -57,7 +57,7 @@ class Timer:
 class PyMOLSession:
     """Context manager for a PyMOL session.
 
-    Example
+    Example:
     -------
     >>> with PyMOLSession():
     >>>     cmd.load("structure.pdb", "structure")
@@ -74,7 +74,6 @@ class PyMOLSession:
 
 def clean_gpu_cache(func: Callable) -> Callable:
     """Decorator to clean GPU memory cache after the decorated function is executed."""
-
     counter = 0
 
     @wraps(func)
@@ -158,7 +157,7 @@ def count_mutations(
 ) -> np.ndarray:
     """Count the number of mutations between sequences and a reference sequence of the same length.
 
-    Args
+    Args:
     ----
     seqs_list: str | list[str]
         List of sequences to compare.
@@ -167,7 +166,7 @@ def count_mutations(
     substitution_matrix: str
         Substitution matrix to use. Can be "identity" or a name from Bio.Align.substitution_matrices.load().
 
-    Returns
+    Returns:
     -------
     mutation_counts: np.ndarray
         Number of mutations between each sequence and the reference sequence.
@@ -201,7 +200,8 @@ def count_mutations(
                 f"Substitution matrix {substitution_matrix} does not contain all 20 amino acids."
             )
         submat = (
-            pd.DataFrame(
+            pd
+            .DataFrame(
                 submat_fromBio,
                 index=list(submat_fromBio.alphabet),
                 columns=list(submat_fromBio.alphabet),
@@ -239,7 +239,7 @@ def calculate_rmsd(
 ) -> list[float]:
     """Calculate the RMSD between the mobile structure and the target structure.
 
-    Args
+    Args:
     ----
     mobile: str
         The path to the mobile structure.
@@ -257,12 +257,12 @@ def calculate_rmsd(
     **kwargs
         Additional keyword arguments for `cmd.align` or `cmd.super`.
 
-    Returns
+    Returns:
     -------
     rmsds : list[float]
         The RMSDs between the mobile structure and the target structure for each report selection.
 
-    Notes
+    Notes:
     -----
     - This function runs in a PyMOL session, so it cannot be used in multi-threading.
         Use multi-processing instead.
@@ -355,7 +355,7 @@ def get_chain_mask(
 ) -> torch.Tensor:
     """Create a chain mask to notify which residues are fixed (0) and which need to be designed (1).
 
-    Args
+    Args:
     ------
     chain_letters: list[str]
         A list of chain letters of the protein structure.
@@ -372,12 +372,11 @@ def get_chain_mask(
     device: Device
         The device to use for the output tensor. If None, uses the default device.
 
-    Returns
+    Returns:
     -------
     chain_mask: torch.Tensor
         A binary tensor notifying which residues are redesignable.
     """
-
     if not use_sequence:
         return torch.ones(len(R_idx), device=device)
 
@@ -489,7 +488,6 @@ def extract_from_esmfold(file_path: str) -> pd.Series:
 
     Can be accelerated with multi-threading.
     """
-
     data = torch.load(file_path, weights_only=False, map_location="cpu")
 
     atom37_atom_exists = data["atom37_atom_exists"].cpu().squeeze(0)

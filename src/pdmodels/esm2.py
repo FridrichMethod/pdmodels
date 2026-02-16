@@ -58,7 +58,7 @@ class ESM2(nn.Module):
 
         Mask every single position of the sequence and calculate the entropy of the masked token.
 
-        Args
+        Args:
         ----
         seqs_list: Sequence[str]
             A list of sequences of complex to score towards the given complex structure.
@@ -69,7 +69,7 @@ class ESM2(nn.Module):
             Print the loss and perplexity of the complex.
 
 
-        Returns
+        Returns:
         -------
         output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
@@ -81,7 +81,6 @@ class ESM2(nn.Module):
             perplexity: torch.Tensor[B,]
                 exp{average entropy} of the full sequence.
         """
-
         aa_tokens = self.tokenizer.encode(
             AA_ALPHABET, add_special_tokens=False, return_tensors="pt"
         ).squeeze()  # (20,)

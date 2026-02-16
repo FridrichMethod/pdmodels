@@ -1,6 +1,6 @@
 import os
 from collections.abc import Sequence
-from functools import cache, lru_cache
+from functools import cache
 
 import esm
 import numpy as np
@@ -81,7 +81,6 @@ def _concatenate_seqs(
     target_aa_indices: np.ndarray
         Indices of the concatenated sequences in the concatenated array
     """
-
     target_seq = target_seqs[target_chain_id]
     target_seqs_list = [target_seq]
     target_aa_indices = []
@@ -120,7 +119,6 @@ def load_native_coords_and_seqs(
     native_seqs: dict[str, str]
         Dictionary mapping chain ids to corresponding AA sequence
     """
-
     struct = load_structure(pdb_path)
     native_coords, native_seqs = extract_coords_from_complex(struct)
 
@@ -163,7 +161,7 @@ class ESMIF(nn.Module):
     ) -> ScoreDict:
         """Score target sequences towards a given complex structure.
 
-        Args
+        Args:
         ----
         pdb_path: str
             The path to the PDB file.
@@ -177,7 +175,7 @@ class ESMIF(nn.Module):
         verbose: bool
             Whether to print the results.
 
-        Returns
+        Returns:
         -------
         output_dict: ScoreDict
             entropy: torch.Tensor[B, L, 20]
@@ -189,15 +187,16 @@ class ESMIF(nn.Module):
             perplexity: torch.Tensor[B,]
                 exp{average entropy} of the full sequence.
 
-        Notes
+        Notes:
         -----
         - Please make sure that the chain letters in the PDB file match the order of the sequences in seqs_list.
         """
-
         native_coords, native_seqs = load_native_coords_and_seqs(pdb_path)
 
         # Check if the native chain ids match the expected alphabetical order for safety
-        assert "".join(native_seqs.keys()) == CHAIN_ALPHABET[: len(native_seqs)], f"Native chain ids {native_seqs.keys()} do not match expected alphabetical order {CHAIN_ALPHABET[: len(native_seqs)]}"
+        assert "".join(native_seqs.keys()) == CHAIN_ALPHABET[: len(native_seqs)], (
+            f"Native chain ids {native_seqs.keys()} do not match expected alphabetical order {CHAIN_ALPHABET[: len(native_seqs)]}"
+        )
         if seqs_list is None:
             seqs_list = [":".join(native_seqs.values())]
         seq_dict_list = [dict(zip(native_seqs.keys(), seqs.split(":"))) for seqs in seqs_list]
@@ -285,7 +284,7 @@ class ESMIF(nn.Module):
     ) -> None:
         """Sample redesigned sequences for a given complex structure.
 
-        Args
+        Args:
         ----
         pdb_path: str
             Path to the PDB file.
@@ -306,7 +305,6 @@ class ESMIF(nn.Module):
         index_offset: int
             Offset for the sequence IDs.
         """
-
         native_coords, native_seqs = load_native_coords_and_seqs(pdb_path)
         all_coords = _concatenate_coords(
             native_coords, target_chain_id, padding_length=padding_length

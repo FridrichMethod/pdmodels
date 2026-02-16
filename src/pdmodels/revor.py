@@ -72,7 +72,6 @@ def plot_dag(
     layout_kwargs: dict
         Additional keyword arguments for the layout function.
     """
-
     if subdag_titles is None:
         subdag = dag
     elif isinstance(subdag_titles, str):
@@ -214,7 +213,6 @@ class ReVor:
 
     def _score(self, seqs_list: list[str]) -> torch.Tensor:
         """Calculate the average delta loss for a batch of sequences."""
-
         score_dict_dict = self._apply_score_funcs(seqs_list)
         perplexity_dict = {
             name: score_dict["perplexity"] for name, score_dict in score_dict_dict.items()
@@ -256,7 +254,6 @@ class ReVor:
         temperature: float,
     ) -> None:
         """Iterate over the sequences and revert the mutations that increase the loss."""
-
         self.it += 1
 
         aa_tensor = seqs_list_to_tensor(seqs_list)  # (B, L)
@@ -383,7 +380,6 @@ class ReVor:
         -----
         - The actual batch size is `batch_size * repeat` if `repeat` is in self.kwargs.
         """
-
         if os.path.exists(checkpoint_path):
             self._load_checkpoint(checkpoint_path)
         elif input_path.endswith(".fasta"):
@@ -461,7 +457,6 @@ class ReVor:
         **layout_kwargs: Any,
     ) -> None:
         """Plot the graph of the reverted sequences."""
-
         plot_dag(
             self.dag,
             layout,

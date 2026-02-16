@@ -64,7 +64,6 @@ def _make_msa_features_from_files(
 
     The MSA files are expected to be the same as AlphaFold MSA tools output.
     """
-
     logging.info("Making MSA features...")
 
     if not msa_dir:
@@ -216,7 +215,6 @@ def _make_template_features_from_files(
 
     The template file is expected to be the same as AlphaFold template searching tools output.
     """
-
     with open(template_path, encoding="utf-8") as f:
         pdb_templates_result = f.read()
 
@@ -332,7 +330,6 @@ def _make_msa_features(
     - If msa_features_for_all is not provided, empty MSA features will be returned.
     - If msa_features_for_all is provided, the first MSA will be updated with the sequence.
     """
-
     logging.info("Making MSA features...")
 
     # Create empty MSA features
@@ -370,7 +367,6 @@ def _make_template_features(
     - If template_features_for_all is provided, the templates will be aligned to the sequence first,
         and the corresponding atom positions, atom masks and sequences features will be updated.
     """
-
     logging.info("Making template features...")
 
     # Create empty template features
@@ -624,7 +620,6 @@ class DataPipelineMultimer:
 
     def process(self, sequences: str, domain_name: str) -> pipeline.FeatureDict:
         """Constructs sequence, MSA and template features for each query multimer sequence."""
-
         seqs_list = sequences.split(":")
         if (seqs_num := len(seqs_list)) != (chains_num := len(self.all_chain_features_for_all)):
             raise ValueError(
@@ -670,7 +665,6 @@ class Af2Ig:
         data_pipeline: DataPipeline | DataPipelineMultimer,
     ) -> None:
         """Initialize the AlphaFold2 model."""
-
         self.model_name = model_name
         self.is_multimer = is_multimer
         self.data_dir = data_dir
@@ -710,7 +704,6 @@ class Af2Ig:
         dict[str, Any]
             The prediction results.
         """
-
         # Extract domain name and remove it from feature_dict
         domain_name = feature_dict.pop("domain_name").item().decode()
         logging.info("Predicting %s", domain_name)
@@ -759,7 +752,6 @@ class Af2Ig:
         output_dir: str
             The output directory to save the results.
         """
-
         # Extract domain name and unrelaxed PDB
         domain_name = prediction_result.pop("domain_name")
         unrelaxed_pdb = prediction_result.pop("unrelaxed_pdb")
@@ -832,7 +824,6 @@ class Af2Ig:
 
     def _run(self, fasta_path: str, output_dir: str, random_seed: int = 0) -> None:
         """Runs AlphaFold2 initial guess for monomer and multimer prediction."""
-
         q_in: queue.Queue = queue.Queue(maxsize=3)
         q_out: queue.Queue = queue.Queue(maxsize=3)
 
@@ -865,7 +856,6 @@ class Af2Ig:
         ------
         - The asynchronous mode is experimental and may not cause a significant performance improvement.
         """
-
         if asynchronous:
             self._run(fasta_path, output_dir, random_seed=random_seed)
         else:
@@ -886,7 +876,6 @@ class Af2Ig:
 
 def cli(args: argparse.Namespace) -> None:
     """Runs AlphaFold2 initial guess for monomer and multimer prediction."""
-
     # Set logging level
     logging.set_verbosity(logging.INFO if args.verbose else logging.ERROR)
 
@@ -922,7 +911,6 @@ def cli(args: argparse.Namespace) -> None:
 
 def setup_parser(parser: argparse.ArgumentParser) -> None:
     """Set up the command line argument parser for AlphaFold2 initial guess."""
-
     # General arguments
     parser.add_argument("--model_name", type=str, required=True)
     parser.add_argument("--data_dir", type=str, required=True)
